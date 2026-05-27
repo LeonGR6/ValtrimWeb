@@ -1,0 +1,17 @@
+{
+  "navigation": {
+    "desktop": "Desktop navigation",
+    "section": "Section navigation",
+    "mobile": "Mobile section navigation",
+    "dashboard": "Dashboard",
+    "home": "Home",
+    "takeoff": "Takeoff",
+    "orderComparison": "PO vs SO Comparison",
+    "compare": "Compare",
+    "admin": "Admin",
+    "userAdministration": "User administration",
+    "materials": "Materials",
+    "materialExtraction": "Material Extraction",
+    "platform": "Platform"
+  }
+}

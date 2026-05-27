@@ -1,0 +1,26 @@
+{
+  "platformHome": {
+    "eyebrow": "Platform overview",
+    "title": "Integrated workspace modules",
+    "aside": "Scalable architecture",
+    "description": "Valtrim is structured as a modular platform. Plan extraction is only one of several capabilities planned for the full product.",
+    "openModule": "Open module",
+    "modules": {
+      "takeoff": {
+        "title": "Quantity Takeoff",
+        "description": "Active pipeline to extract quantities, validate tables and review overlays.",
+        "status": "Active"
+      },
+      "materialExtraction": {
+        "title": "Material Extraction",
+        "description": "Extract materials from door schedule and hardware set to generate material quantities for supplier.",
+        "status": "Coming soon"
+      },
+      "orderComparison": {
+        "title": "PO vs SO Comparison",
+        "description": "Automatically compare purchase order and sales order to validate materials, quantities, and prices.",
+        "status": "Coming soon"
+      }
+    }
+  }
+}

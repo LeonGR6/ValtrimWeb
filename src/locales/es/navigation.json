@@ -1,0 +1,17 @@
+{
+  "navigation": {
+    "desktop": "Navegación de escritorio",
+    "section": "Navegación por secciones",
+    "mobile": "Navegación móvil",
+    "dashboard": "Panel",
+    "home": "Inicio",
+    "takeoff": "Estimación",
+    "orderComparison": "Comparación OC vs OV",
+    "compare": "Comparar",
+    "admin": "Admin",
+    "userAdministration": "Administración de usuarios",
+    "materials": "Materiales",
+    "materialExtraction": "Extracción de materiales",
+    "platform": "Plataforma"
+  }
+}

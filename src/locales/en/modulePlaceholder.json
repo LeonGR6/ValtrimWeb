@@ -1,0 +1,6 @@
+{
+  "modulePlaceholder": {
+    "comingSoon": "Coming soon",
+    "description": "This module is reserved in routing and navigation so the platform can scale without redesigning the shell."
+  }
+}

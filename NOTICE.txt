@@ -1,0 +1,10 @@
+NOTICE
+
+Autor del desarrollo:
+Gerardo Esparza
+
+Este software y su codigo fuente fueron desarrollados por Gerardo Esparza.
+La publicacion o entrega de este proyecto por GitHub y/o formato ZIP no transfiere autoria del codigo.
+
+Fecha de emision:
+2026-05-26

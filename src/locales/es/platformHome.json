@@ -1,0 +1,26 @@
+{
+  "platformHome": {
+    "eyebrow": "Resumen de la plataforma",
+    "title": "Módulos integrados del espacio de trabajo",
+    "aside": "Arquitectura escalable",
+    "description": "Valtrim está estructurado como una plataforma modular. La extracción de planos es solo una de varias capacidades previstas para el producto completo.",
+    "openModule": "Abrir módulo",
+    "modules": {
+      "takeoff": {
+        "title": "Estimación de obra (Takeoff)",
+        "description": "Flujo activo para medir y cuantificar materiales y mano de obra, validar tablas y revisar overlays.",
+        "status": "Activo"
+      },
+      "materialExtraction": {
+        "title": "Extracción de materiales",
+        "description": "Extrae materiales desde door schedule y hardware set para generar cantidades para proveedores.",
+        "status": "Próximamente"
+      },
+      "orderComparison": {
+        "title": "Comparación OC vs OV",
+        "description": "Compara automáticamente la orden de compra con la orden de venta para validar materiales, cantidades y precios.",
+        "status": "Próximamente"
+      }
+    }
+  }
+}

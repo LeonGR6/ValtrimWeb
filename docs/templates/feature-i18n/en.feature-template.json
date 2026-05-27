@@ -1,0 +1,23 @@
+{
+    "featureName": {
+        "header": {
+            "eyebrow": "Feature overview",
+            "title": "Feature title",
+            "subtitle": "Short context for the user."
+        },
+        "actions": {
+            "run": "Run",
+            "running": "Running..."
+        },
+        "messages": {
+            "empty": "No data available yet.",
+            "success": "Operation completed successfully."
+        },
+        "errors": {
+            "fetchFailed": "Could not load data. Please try again."
+        },
+        "a11y": {
+            "openDetails": "Open details"
+        }
+    }
+}

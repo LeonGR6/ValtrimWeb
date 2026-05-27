@@ -1,0 +1,19 @@
+{
+  "api": {
+    "auth": {
+      "requestFailed": "Request failed",
+      "invalidAuthResponse": "Invalid server response during {{action}}. Check the API_BASE_URL configuration in production.",
+      "networkError": "Could not connect to the server. Check your connection.",
+      "invalidResponseFormat": "The server responded in an unexpected format. Review the API configuration in production.",
+      "requestError": "Request error",
+      "actions": {
+        "register": "register",
+        "signIn": "sign in"
+      },
+      "couldNotCreateAccount": "Could not create the account",
+      "couldNotSignIn": "Could not sign in",
+      "registrationFailed": "Registration failed",
+      "loginFailed": "Login failed"
+    }
+  }
+}

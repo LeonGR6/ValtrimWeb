@@ -1,0 +1,34 @@
+{
+  "routes": {
+    "dashboard": {
+      "eyebrow": "Platform overview",
+      "title": "Integral construction intelligence platform",
+      "description": "Unified shell for quantity takeoff and material extraction."
+    },
+    "takeoff": {
+      "eyebrow": "Extraction workflow",
+      "title": "Takeoff module",
+      "description": "Workspace, results, and viewer are organized as internal tabs within this module."
+    },
+    "materials": {
+      "eyebrow": "Material extraction",
+      "title": "Material Extraction module",
+      "description": "Extract materials from door schedule and hardware set to generate material quantities for supplier."
+    },
+    "orderComparison": {
+      "eyebrow": "Order comparison",
+      "title": "Purchase Order vs Sales Order Comparator",
+      "description": "Upload the purchase order and sales order to validate material, quantity, and price matching with AI."
+    },
+    "profile": {
+      "eyebrow": "Account",
+      "title": "My profile",
+      "description": "Manage your personal information and access credentials."
+    },
+    "userAdmin": {
+      "eyebrow": "Access control",
+      "title": "User administration",
+      "description": "Assign and update platform user roles."
+    }
+  }
+}

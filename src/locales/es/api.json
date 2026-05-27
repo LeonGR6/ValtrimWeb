@@ -1,0 +1,19 @@
+{
+  "api": {
+    "auth": {
+      "requestFailed": "Falló la solicitud",
+      "invalidAuthResponse": "Respuesta inválida del servidor durante {{action}}. Revisa la configuración de API_BASE_URL en producción.",
+      "networkError": "No se pudo conectar con el servidor. Revisa tu conexión.",
+      "invalidResponseFormat": "El servidor respondió con un formato inesperado. Revisa la configuración de la API en producción.",
+      "requestError": "Error en la solicitud",
+      "actions": {
+        "register": "el registro",
+        "signIn": "el inicio de sesión"
+      },
+      "couldNotCreateAccount": "No se pudo crear la cuenta",
+      "couldNotSignIn": "No se pudo iniciar sesión",
+      "registrationFailed": "Falló el registro",
+      "loginFailed": "Falló el inicio de sesión"
+    }
+  }
+}

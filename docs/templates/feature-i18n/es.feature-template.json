@@ -1,0 +1,23 @@
+{
+    "featureName": {
+        "header": {
+            "eyebrow": "Resumen del modulo",
+            "title": "Titulo del modulo",
+            "subtitle": "Contexto breve para el usuario."
+        },
+        "actions": {
+            "run": "Ejecutar",
+            "running": "Ejecutando..."
+        },
+        "messages": {
+            "empty": "Aun no hay datos disponibles.",
+            "success": "La operacion se completo correctamente."
+        },
+        "errors": {
+            "fetchFailed": "No se pudieron cargar los datos. Intenta de nuevo."
+        },
+        "a11y": {
+            "openDetails": "Abrir detalles"
+        }
+    }
+}

@@ -1,0 +1,34 @@
+{
+  "routes": {
+    "dashboard": {
+      "eyebrow": "Resumen de la plataforma",
+      "title": "Plataforma integral de inteligencia para construcción",
+      "description": "Interfaz unificada para estimación de obra y extracción de materiales."
+    },
+    "takeoff": {
+      "eyebrow": "Proceso de estimación",
+      "title": "Módulo de estimación de obra",
+      "description": "Espacio para medir y cuantificar materiales y mano de obra; el workspace, resultados y visor se organizan como pestañas internas."
+    },
+    "materials": {
+      "eyebrow": "Extracción de materiales",
+      "title": "Módulo de extracción de materiales",
+      "description": "Extrae materiales desde door schedule y hardware set para generar cantidades para proveedores."
+    },
+    "orderComparison": {
+      "eyebrow": "Comparación de órdenes",
+      "title": "Comparador de orden de compra y orden de venta",
+      "description": "Sube la orden de compra y la orden de venta para validar coincidencia de materiales, cantidades y precios con IA."
+    },
+    "profile": {
+      "eyebrow": "Cuenta",
+      "title": "Mi perfil",
+      "description": "Administra tu información personal y credenciales de acceso."
+    },
+    "userAdmin": {
+      "eyebrow": "Control de acceso",
+      "title": "Administración de usuarios",
+      "description": "Asigna y actualiza roles de usuarios de la plataforma."
+    }
+  }
+}

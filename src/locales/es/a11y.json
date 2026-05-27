@@ -1,0 +1,10 @@
+{
+  "a11y": {
+    "viewProfile": "Ver perfil",
+    "themeSelector": "Selector de tema",
+    "languageSelector": "Selector de idioma",
+    "currentLocation": "Ubicación actual",
+    "showPassword": "Mostrar contraseña",
+    "hidePassword": "Ocultar contraseña"
+  }
+}

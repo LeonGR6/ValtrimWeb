@@ -1,0 +1,21 @@
+{
+  "common": {
+    "user": "User",
+    "theme": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "lightMode": "Light mode",
+    "darkMode": "Dark mode",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode",
+    "language": "Language",
+    "signOut": "Sign out",
+    "save": "Save",
+    "saving": "Saving...",
+    "create": "Create",
+    "createLoading": "Creating...",
+    "update": "Update",
+    "updating": "Updating...",
+    "loading": "Loading..."
+  }
+}

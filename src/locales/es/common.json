@@ -1,0 +1,21 @@
+{
+  "common": {
+    "user": "Usuario",
+    "theme": "Tema",
+    "dark": "Oscuro",
+    "light": "Claro",
+    "lightMode": "Modo claro",
+    "darkMode": "Modo oscuro",
+    "switchToLight": "Cambiar a modo claro",
+    "switchToDark": "Cambiar a modo oscuro",
+    "language": "Idioma",
+    "signOut": "Cerrar sesión",
+    "save": "Guardar",
+    "saving": "Guardando...",
+    "create": "Crear",
+    "createLoading": "Creando...",
+    "update": "Actualizar",
+    "updating": "Actualizando...",
+    "loading": "Cargando..."
+  }
+}

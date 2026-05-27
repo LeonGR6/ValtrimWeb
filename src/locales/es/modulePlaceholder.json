@@ -1,0 +1,6 @@
+{
+  "modulePlaceholder": {
+    "comingSoon": "Próximamente",
+    "description": "Este módulo está reservado en el ruteo y la navegación para que la plataforma pueda escalar sin rediseñar el shell."
+  }
+}
