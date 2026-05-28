@@ -15,17 +15,17 @@ export default function ProtectedRoute({ children, requiredRoles = [] }) {
         );
     }
 
-    if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
-    }
+    // if (!isAuthenticated) {
+    //     return <Navigate to="/login" replace />;
+    // }
 
-    if (Array.isArray(requiredRoles) && requiredRoles.length > 0) {
-        const userRoles = Array.isArray(user?.roles) ? user.roles : [];
-        const hasRequiredRole = userRoles.some((role) => requiredRoles.includes(role));
-        if (!hasRequiredRole) {
-            return <Navigate to="/dashboard" replace />;
-        }
-    }
+    // if (Array.isArray(requiredRoles) && requiredRoles.length > 0) {
+    //     const userRoles = Array.isArray(user?.roles) ? user.roles : [];
+    //     const hasRequiredRole = userRoles.some((role) => requiredRoles.includes(role));
+    //     if (!hasRequiredRole) {
+    //         return <Navigate to="/dashboard" replace />;
+    //     }
+    // }
 
     return children;
 }

@@ -1,0 +1,19 @@
+{
+  "orderComparison": {
+    "title": "Ordenes de Compra",
+    "subtitle": "Compara y gestiona las solicitudes de adquisiciones",
+    "pdfButton" : "Subir PDF del Proveedor",
+    "tabs": {
+      "all": "Todos",
+      "draft": "Borrador",
+      "pending": "Pendiente de Aprobación",
+      "approved": "Aprobado",
+      "poCreated": "Orden Creada",
+      "awaiting": "En Espera de Confirmación",
+      "needs": "Requiere Revisión",
+      "issues": "Con Problemas",
+      "backordered": "Pedido Pendiente",
+      "closed": "Cerrado"
+    }
+  }
+}

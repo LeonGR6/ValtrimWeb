@@ -16,6 +16,10 @@ import Login from './components/pages/Login.jsx';
 import Register from './components/pages/Register.jsx';
 import ModulePlaceholder from './features/platform/ModulePlaceholder.jsx';
 import PlatformHome from './features/platform/PlatformHome.jsx';
+
+import OrderComparisonPage from './features/platform/order-comparision/pages/OrderComparisonPage.jsx';
+import PODetailPage from './features/platform/order-comparision/pages/PODetailPage.jsx';
+
 import { useAuth } from './contexts/AuthContext.jsx';
 
 // App root: defines the application shell, routes, and cross-module UI wiring.
@@ -238,11 +242,20 @@ export default function App() {
               path="/order-comparison"
               element={
                 <ProtectedRoute>
-                  <ModulePlaceholder
+                  {/* <ModulePlaceholder
                     eyebrow={t('routes.orderComparison.eyebrow')}
                     title={t('routes.orderComparison.title')}
                     description={t('routes.orderComparison.description')}
-                  />
+                  /> */}
+                  <OrderComparisonPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/order-comparison/:poId"
+              element={
+                <ProtectedRoute>
+                  <PODetailPage />
                 </ProtectedRoute>
               }
             />

@@ -1,0 +1,19 @@
+{
+  "orderComparison": {
+    "title": "Purchase Orders",
+    "subtitle": "Compare and manage procurement requests",
+    "pdfButton" : "Upload Vendor PDF",
+    "tabs": {
+      "all": "All",
+      "draft": "Draft",
+      "pending": "Pending Approval",
+      "approved": "Approved",
+      "poCreated": "PO Created",
+      "awaiting": "Awaiting Confirmation",
+      "needs": "Needs Review",
+      "issues": "Issues",
+      "backordered": "Backordered",
+      "closed": "Closed"
+    }
+  }
+}
