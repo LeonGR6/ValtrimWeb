@@ -16,6 +16,8 @@ export default function OrderComparisonPage() {
   const [search, setSearch] = useState('');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
+  const [orders, setOrders] = useState(mockMainTable);
+
   const translatedTabs = useMemo(() => [
     { id: 'All', label: t('orderComparison.tabs.all') },
     { id: 'Draft', label: t('orderComparison.tabs.draft') },
@@ -29,8 +31,24 @@ export default function OrderComparisonPage() {
     { id: 'Closed', label: t('orderComparison.tabs.closed') },
   ], [t]);
 
+  // // Const ejemplo para mostrar tabla con datos ejemplo en mockMainTable
+  // const filteredOrders = useMemo(() => {
+  //   return mockMainTable.filter((order) => {
+  //     const matchesTab =
+  //       activeTab === 'All'
+  //         ? true
+  //         : order.status === activeTab;
+
+  //     const matchesSearch =
+  //       (order.job?.toLowerCase() ?? "").includes(search.toLowerCase()) ||
+  //       (order.poNumber ?? "").includes(search);
+
+  //     return matchesTab && matchesSearch;
+  //   });
+  // }, [activeTab, search]);
+
   const filteredOrders = useMemo(() => {
-    return mockMainTable.filter((order) => {
+    return orders.filter((order) => {
       const matchesTab =
         activeTab === 'All'
           ? true
@@ -42,7 +60,15 @@ export default function OrderComparisonPage() {
 
       return matchesTab && matchesSearch;
     });
-  }, [activeTab, search]);
+  }, [activeTab, search, orders]); // <-- Añadido "orders" a las dependencias
+
+  // 3. Función encargada de insertar la nueva orden de n8n al principio de la lista
+  const handleUploadSuccess = (newOrder) => {
+    setOrders((prevOrders) => [newOrder, ...prevOrders]);
+    setIsUploadModalOpen(false);
+  };
+
+
 
   return (
     <div className="order-page">
@@ -67,7 +93,7 @@ export default function OrderComparisonPage() {
       <StatusTabs
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        orders={mockMainTable}
+        orders={orders}
         tabsConfig={translatedTabs}
       />
 
@@ -81,11 +107,7 @@ export default function OrderComparisonPage() {
       {isUploadModalOpen && (
         <UploadVendorModal 
           onClose={() => setIsUploadModalOpen(false)} 
-          onUploadSuccess={(newData) => {
-            // Aquí manejaremos cuando el flujo termine y agregues los datos a la tabla
-            console.log("Datos procesados del PDF:", newData);
-            setIsUploadModalOpen(false);
-          }}
+          onUploadSuccess={handleUploadSuccess}
         />
       )}
 

@@ -127,6 +127,10 @@
   border: 1px solid var(--card-border);
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
 .orders-table {
   width: 100%;
   border-collapse: collapse;

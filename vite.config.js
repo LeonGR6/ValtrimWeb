@@ -71,4 +71,19 @@ export default defineConfig({
       }
     })
   ],
+  server: {
+    proxy: {
+      '/webhook': {
+        target: 'https://inc.valtrimincn8n.com',
+        changeOrigin: true,
+        secure: true,
+      },
+
+      '/webhook-test': {
+        target: 'https://inc.valtrimincn8n.com',
+        changeOrigin: true,
+        secure: true,
+      }
+    }
+  }
 })

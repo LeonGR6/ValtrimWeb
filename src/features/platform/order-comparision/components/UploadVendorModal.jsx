@@ -5,6 +5,7 @@ import '../../../../styles/uploadModal.css';
 export default function UploadVendorModal({ onClose, onUploadSuccess }) {
   const [status, setStatus] = useState('idle'); 
   const [file, setFile] = useState(null);
+  const [extractedData, setExtractedData] = useState(null);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -12,32 +13,74 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
     }
   };
 
-  const handleProcessFlow = () => {
+  const handleProcessFlow = async () => {
     if (!file) return;
 
     setStatus('processing');
 
-    // Simulation of processing time and AI extraction
-    setTimeout(() => {
+    // 1. Preparamos el archivo en un FormData
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+
+      const N8N_WEBHOOK_URL = '/webhook-test/upload-pdf-vendor';
+      
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        body: formData,
+
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al procesar el archivo en n8n');
+      }
+
+      // 3. n8n debe retornar el JSON con los datos extraídos
+      const dataFromN8n = await response.json();
+      console.log("Datos extraídos de n8n:", dataFromN8n);
+      
+      // Guardamos la respuesta en el estado para usarla al finalizar
+      setExtractedData(dataFromN8n);
       setStatus('success');
-    }, 3000); // 3 seconds to simulate processing
+
+    } catch (error) {
+      console.error("Error subiendo el PDF:", error);
+      setStatus('idle');
+      alert('Hubo un error al procesar el PDF. Por favor intenta de nuevo.');
+    }
   };
 
   const handleFinish = () => {
-    // Here you would normally handle the extracted data and update the main table.
-    const mockNewOrder = {
-      requestNumber: "80000902",
-      description: "Vendor Extracted Materials",
-      createdAt: new Date().toLocaleDateString(),
-      items: 12,
-      amount: "$1,850.00",
-      supplier: "New Vendor Corp",
-      department: "Procurement",
-      requester: "Alex Manager",
-      status: "DRAFT"
-    };
+    if (!extractedData) return;
+
+    const qb = extractedData?.qbData || {};
+
+const newOrder = {
+  // Usamos el PO Number de QB como ID, o un fallback por si no viene
+  id: qb.qb_po_number || Date.now().toString(), 
+  
+  alert: "⚠️", 
+  status: "DRAFT",
+  
+  // Mapeo exacto de las propiedades que espera tu MainTable
+  poNumber: qb.qb_po_number || '',
+  job: qb.qb_job_name || '',
+  phaseLots: qb.qb_phase_lots || '',
+  vendor: qb.qb_vendor_name || '',
+  requiredDate: qb.qb_required_date || '',
+  
+  vendorShipDate: extractedData?.pdfData?.vendor_ship_date || "PENDING", 
+  
+  total: qb.qb_total ? `$${Number(qb.qb_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : "$0.00",
+  
+  issues: "None", 
+  confirmation: "PENDING"
+};
     
-    onUploadSuccess(mockNewOrder);
+    
+    onUploadSuccess(newOrder);
+    onClose(); // Cerramos el modal
   };
 
   return (
