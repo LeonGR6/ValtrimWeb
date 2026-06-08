@@ -3,6 +3,8 @@
     "desktop": "Desktop navigation",
     "section": "Section navigation",
     "mobile": "Mobile section navigation",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
     "dashboard": "Dashboard",
     "home": "Home",
     "takeoff": "Takeoff",

@@ -1,7 +1,3 @@
-// Columnas: Status | AI Match | Issue Type | PO Line # | PO Qty | Conf. Qty |
-//           PO Description | Vendor Description | PO Unit Cost | Conf. Unit Cost |
-//           Variance | Req. Date | Vendor Ship Date | Action
-
 import { useState } from 'react';
 import MatchStatusBadge from './MatchStatusBadge.jsx';
 import '../../../../../styles/poDetail.css';
@@ -10,10 +6,11 @@ function ActionButton({ status, onApprove, onReview, onManualMatch }) {
   if (status === 'matched') {
     return (
       <button className="pdt-action-btn pdt-action-btn--approve" onClick={onApprove}>
-        Approved <span className="pdt-chevron">▾</span>
+        Approved
       </button>
     );
   }
+
   if (status === 'missing') {
     return (
       <button className="pdt-action-btn pdt-action-btn--manual" onClick={onManualMatch}>
@@ -21,19 +18,42 @@ function ActionButton({ status, onApprove, onReview, onManualMatch }) {
       </button>
     );
   }
+
   return (
     <button className="pdt-action-btn pdt-action-btn--review" onClick={onReview}>
-      Review <span className="pdt-chevron">▾</span>
+      Review
     </button>
   );
 }
 
-// Variance cell: green if > 0, red if < 0, neutral if 0 or null
+function MoneyCell({ value }) {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return <span className="pdt-muted">-</span>;
+  }
+
+  return (
+    <span>
+      {amount.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}
+    </span>
+  );
+}
+
+function EmptyCell({ value }) {
+  return value ?? <span className="pdt-muted">-</span>;
+}
+
 function VarianceCell({ variance }) {
-  if (variance === null || variance === undefined) return <span className="pdt-muted">—</span>;
+  if (variance === null || variance === undefined) return <span className="pdt-muted">-</span>;
 
   const num = parseFloat(variance);
-  if (num === 0) return <span className="pdt-variance pdt-variance--zero">${num.toFixed(2)}</span>;
+  if (num === 0) return <span className="pdt-variance pdt-variance--zero">$0.00</span>;
   if (num > 0) return <span className="pdt-variance pdt-variance--positive">+${num.toFixed(2)}</span>;
   return <span className="pdt-variance pdt-variance--negative">-${Math.abs(num).toFixed(2)}</span>;
 }
@@ -44,7 +64,6 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
 
   return (
     <div className="pdt-wrapper">
-
       <div className="pdt-scroll">
         <table className="pdt-table">
           <thead>
@@ -52,13 +71,17 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
               <th>Status</th>
               {/* <th>AI Match</th> */}
               <th>Issue Type</th>
-              <th>PO Line #</th>
-              <th>PO Qty</th>
-              <th>Conf. Qty</th>
-              <th>PO Description</th>
-              <th>Vendor Description</th>
-              <th>PO Unit Cost</th>
-              <th>Conf. Unit Cost</th>
+              {/* <th>Item</th> */}
+              <th>PDF Line</th>
+              <th>QB Line</th>
+              <th>PDF Qty</th>
+              <th>QB Qty</th>
+              <th>PDF Description</th>
+              <th>QB Description</th>
+              <th>PDF Unit</th>
+              <th>QB Rate</th>
+              <th>PDF Total</th>
+              <th>QB Total</th>
               <th>Variance</th>
               <th>Req. Date</th>
               <th>Vendor Ship Date</th>
@@ -66,52 +89,73 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
             </tr>
           </thead>
           <tbody>
-            {lines.map((line, i) => (
-              <tr key={i} className={`pdt-row pdt-row--${line.status}`}>
-                <td>
-                  <MatchStatusBadge status={line.status} />
-                </td>
-                {/* <td>
-                  {line.aiMatch != null ? (
-                    <span className="pdt-ai-match">{line.aiMatch}%</span>
-                  ) : (
-                    <span className="pdt-muted">—</span>
-                  )}
-                </td> */}
-                <td>
-                  <span className="pdt-issue-type">{line.issueType ?? '—'}</span>
-                </td>
-                <td>{line.poLineNumber ?? '—'}</td>
-                <td>{line.poQty ?? '—'}</td>
-                <td>{line.confQty ?? '—'}</td>
-                <td className="pdt-description">{line.poDescription}</td>
-                <td className="pdt-description pdt-description--vendor">
-                  {line.vendorDescription ?? (
-                    <span className="pdt-no-match">No matching line found in confirmation</span>
-                  )}
-                </td>
-                <td>{line.poUnitCost != null ? `$${line.poUnitCost}` : '—'}</td>
-                <td>{line.confUnitCost != null ? `$${line.confUnitCost}` : '—'}</td>
-                <td>
-                  <VarianceCell variance={line.variance} />
-                </td>
-                <td>{line.reqDate ?? '—'}</td>
-                <td>{line.vendorShipDate ?? '—'}</td>
-                <td>
-                  <ActionButton
-                    status={line.status}
-                    onApprove={() => console.log('approve', line.poLineNumber)}
-                    onReview={() => console.log('review', line.poLineNumber)}
-                    onManualMatch={() => console.log('manual match', line.poLineNumber)}
-                  />
+            {lines.length === 0 ? (
+              <tr>
+                <td colSpan="18" className="pdt-empty">
+                  No detail lines available yet.
                 </td>
               </tr>
-            ))}
+            ) : (
+              lines.map((line, i) => (
+                <tr key={line.id ?? i} className={`pdt-row pdt-row--${line.status}`}>
+                  <td>
+                    <MatchStatusBadge status={line.status} />
+                  </td>
+                  {/* <td>
+                    {line.aiMatch != null ? (
+                      <span className="pdt-ai-match">{line.aiMatch}%</span>
+                    ) : (
+                      <span className="pdt-muted">-</span>
+                    )}
+                  </td> */}
+                  <td>
+                    <span className="pdt-issue-type">{line.issueType ?? '-'}</span>
+                  </td>
+                  {/* <td><EmptyCell value={line.itemId} /></td> */}
+                  <td><EmptyCell value={line.pdfLineNumber} /></td>
+                  <td><EmptyCell value={line.poLineNumber} /></td>
+                  <td><EmptyCell value={line.confQty} /></td>
+                  <td><EmptyCell value={line.poQty} /></td>
+                  <td className="pdt-description pdt-description--vendor">
+                    {line.vendorDescription?.itemId ? (
+                      <>
+                        <strong>Item ID:</strong> {line.vendorDescription.itemId}
+                        <br />
+                        <strong>Description:</strong> {line.vendorDescription.description}
+                      </>
+                    ) : (
+                      line.vendorDescription?.description
+                    )}
+                  </td>
+                  <td className="pdt-description">
+                    {line.poDescription ?? (
+                      <span className="pdt-no-match">No QB line found</span>
+                    )}
+                  </td>
+                  <td><MoneyCell value={line.confUnitCost} /></td>
+                  <td><MoneyCell value={line.poUnitCost} /></td>
+                  <td><MoneyCell value={line.confTotal} /></td>
+                  <td><MoneyCell value={line.poTotal} /></td>
+                  <td>
+                    <VarianceCell variance={line.variance} />
+                  </td>
+                  <td>{line.reqDate ?? '-'}</td>
+                  <td>{line.vendorShipDate ?? '-'}</td>
+                  <td>
+                    <ActionButton
+                      status={line.status}
+                      onApprove={() => console.log('approve', line.poLineNumber)}
+                      onReview={() => console.log('review', line.poLineNumber)}
+                      onManualMatch={() => console.log('manual match', line.poLineNumber)}
+                    />
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Footer with pagination */}
       <div className="pdt-footer">
         <span className="pdt-results-count">
           Showing {lines.length} of {totalResults} results
@@ -120,9 +164,9 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
           <button
             className="pdt-page-btn"
             disabled={currentPage === 1}
-            onClick={() => setCurrentPage(p => p - 1)}
+            onClick={() => setCurrentPage((page) => page - 1)}
           >
-            ‹
+            Prev
           </button>
           {[...Array(Math.min(totalPages, 6))].map((_, i) => (
             <button
@@ -133,7 +177,7 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
               {i + 1}
             </button>
           ))}
-          {totalPages > 6 && <span className="pdt-page-ellipsis">…</span>}
+          {totalPages > 6 && <span className="pdt-page-ellipsis">...</span>}
           {totalPages > 6 && (
             <button
               className={`pdt-page-btn ${currentPage === totalPages ? 'pdt-page-btn--active' : ''}`}
@@ -145,13 +189,12 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
           <button
             className="pdt-page-btn"
             disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(p => p + 1)}
+            onClick={() => setCurrentPage((page) => page + 1)}
           >
-            ›
+            Next
           </button>
         </div>
       </div>
-
     </div>
   );
 }

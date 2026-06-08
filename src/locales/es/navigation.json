@@ -3,6 +3,8 @@
     "desktop": "Navegación de escritorio",
     "section": "Navegación por secciones",
     "mobile": "Navegación móvil",
+    "collapseSidebar": "Contraer menu lateral",
+    "expandSidebar": "Expandir menu lateral",
     "dashboard": "Panel",
     "home": "Inicio",
     "takeoff": "Estimación",

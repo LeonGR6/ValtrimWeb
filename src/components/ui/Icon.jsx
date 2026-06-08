@@ -13,6 +13,8 @@ const ICON_PATHS = {
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21a8 8 0 0 1 16 0',
   team: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M17 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M3 20a6 6 0 0 1 12 0 M13 20a4 4 0 0 1 8 0',
   logout: 'M15 12H4 M9 7l-5 5 5 5 M20 4v16',
+  panelCollapse: 'M4 5h16v14H4z M9 5v14 M16 9l-3 3 3 3',
+  panelExpand: 'M4 5h16v14H4z M9 5v14 M13 9l3 3-3 3',
 };
 
 export default function Icon({ name, className = '', title }) {

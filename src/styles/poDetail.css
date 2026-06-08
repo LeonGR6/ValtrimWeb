@@ -95,6 +95,25 @@
   color: var(--table-link, #1d4ed8);
 }
 
+.pdh-ai-note {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pdh-ai-note p {
+  margin: 0;
+}
+
+.pdh-ai-note p + p {
+  margin-top: 8px;
+}
+
 /* PODetailTable.css */
 
 /* ==========================================
@@ -147,7 +166,7 @@
 .pdt-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1200px; /* fuerza scroll horizontal en pantallas chicas */
+  min-width: 1900px; /* fuerza scroll horizontal en pantallas chicas */
 }
 
 .pdt-table th {
@@ -179,8 +198,11 @@
 /* Columnas de descripción más anchas */
 .pdt-description {
   min-width: 180px;
-  max-width: 220px;
+  max-width: 260px;
   line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .pdt-description--vendor {
@@ -191,6 +213,12 @@
   font-style: italic;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.pdt-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 28px 16px;
 }
 
 /* ==========================================
@@ -293,8 +321,9 @@
 }
 
 .pdt-page-btn {
-  width: 32px;
+  min-width: 32px;
   height: 32px;
+  width: auto;
   border-radius: 8px;
   border: 1px solid var(--card-border);
   background: var(--card-bg);
@@ -306,6 +335,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 10px;
 }
 
 .pdt-page-btn:hover:not(:disabled) {

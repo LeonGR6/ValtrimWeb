@@ -1,4 +1,5 @@
 // WATERMARK_AUTHOR: Hecho por Gerardo Esparza
+import { useState } from 'react';
 import Card from '../ui/Card.jsx';
 import Icon from '../ui/Icon.jsx';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -17,6 +18,7 @@ export default function Sidebar({ brand, navItems = [], children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -24,8 +26,21 @@ export default function Sidebar({ brand, navItems = [], children }) {
   };
 
   return (
-    <aside className="shell-sidebar" aria-label={t('navigation.desktop')}>
-      {brand}
+    <aside
+      className={`shell-sidebar${isCollapsed ? ' is-collapsed' : ''}`}
+      aria-label={t('navigation.desktop')}
+    >
+      <button
+        type="button"
+        className="sidebar-toggle"
+        aria-label={isCollapsed ? t('navigation.expandSidebar') : t('navigation.collapseSidebar')}
+        aria-expanded={!isCollapsed}
+        onClick={() => setIsCollapsed((current) => !current)}
+      >
+        <Icon name={isCollapsed ? 'panelExpand' : 'panelCollapse'} className="nav-icon" />
+      </button>
+
+      <div className="sidebar-brand">{brand}</div>
       <Card className="nav-panel" surface="subtle" density="compact" as="nav" aria-label={t('navigation.section')}>
         {navItems.map((item) => (
           <NavLink
@@ -33,13 +48,14 @@ export default function Sidebar({ brand, navItems = [], children }) {
             className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
             to={item.to}
             end={item.to === '/'}
+            title={isCollapsed ? item.label : undefined}
           >
             {item.icon ? <Icon name={item.icon} className="nav-icon" /> : null}
             <span>{item.label}</span>
           </NavLink>
         ))}
       </Card>
-      {children}
+      <div className="sidebar-extra">{children}</div>
 
       {user ? (
         <Card className="user-panel" surface="subtle" density="compact">
@@ -47,6 +63,7 @@ export default function Sidebar({ brand, navItems = [], children }) {
             to="/profile"
             className={({ isActive }) => `user-panel-link${isActive ? ' active' : ''}`}
             aria-label={t('a11y.viewProfile')}
+            title={isCollapsed ? user.fullName || t('common.user') : undefined}
           >
             <span className="user-avatar" aria-hidden="true">{getInitials(user.fullName)}</span>
             <span className="user-meta">
@@ -58,6 +75,7 @@ export default function Sidebar({ brand, navItems = [], children }) {
             type="button"
             className="nav-link user-logout"
             onClick={handleLogout}
+            title={isCollapsed ? t('common.signOut') : undefined}
           >
             <Icon name="logout" className="nav-icon" />
             <span>{t('common.signOut')}</span>

@@ -38,7 +38,9 @@ export default function MainTable({ data }) {
                   <button
                     type="button"
                     className="po-link-btn"
-                    onClick={() => navigate(`/order-comparison/${order.poNumber}`)}
+                    onClick={() => navigate(`/order-comparison/${order.poNumber}`, {
+                      state: { order },
+                    })}
                   >
                     {order.poNumber}
                   </button>

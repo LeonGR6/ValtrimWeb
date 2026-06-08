@@ -1,8 +1,12 @@
 /* WATERMARK_AUTHOR: Hecho por Gerardo Esparza */
 .shell {
     display: grid;
-    grid-template-columns: minmax(16rem, 18.5rem) minmax(0, 1fr);
+    grid-template-columns: var(--sidebar-width, minmax(16rem, 18.5rem)) minmax(0, 1fr);
     min-height: 100vh;
+}
+
+.shell:has(.shell-sidebar.is-collapsed) {
+    --sidebar-width: 5.25rem;
 }
 
 .shell-sidebar {
@@ -18,6 +22,53 @@
     border-right: 1px solid var(--line-soft);
     background: color-mix(in srgb, var(--bg-panel-strong) 90%, transparent);
     backdrop-filter: blur(28px);
+}
+
+.sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+    width: 2.35rem;
+    height: 2.35rem;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-md);
+    color: var(--text-2);
+    background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+    cursor: pointer;
+    transition:
+        background-color var(--duration-fast) var(--easing-standard),
+        border-color var(--duration-fast) var(--easing-standard),
+        color var(--duration-fast) var(--easing-standard);
+}
+
+.sidebar-toggle:hover {
+    background: var(--bg-accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    color: var(--text-1);
+}
+
+.shell-sidebar.is-collapsed {
+    align-items: center;
+    overflow-x: hidden;
+    padding-inline: var(--space-3);
+}
+
+.shell-sidebar.is-collapsed .sidebar-toggle {
+    align-self: center;
+}
+
+.shell-sidebar.is-collapsed .sidebar-brand,
+.shell-sidebar.is-collapsed .sidebar-extra {
+    display: none;
+}
+
+.shell-sidebar.is-collapsed .nav-panel,
+.shell-sidebar.is-collapsed .user-panel {
+    width: 100%;
+    padding-inline: var(--space-2);
 }
 
 .shell-sidebar .panel {
@@ -268,6 +319,15 @@
         color var(--duration-fast) var(--easing-standard);
 }
 
+.shell-sidebar.is-collapsed .nav-link {
+    justify-content: center;
+    padding-inline: 0;
+}
+
+.shell-sidebar.is-collapsed .nav-link span:not(.nav-icon) {
+    display: none;
+}
+
 .nav-link:hover,
 .mobile-nav-link:hover {
     transform: translateY(-1px);
@@ -334,6 +394,15 @@
     border: 1px solid transparent;
     transition: background-color var(--duration-fast) var(--easing-standard),
         border-color var(--duration-fast) var(--easing-standard);
+}
+
+.shell-sidebar.is-collapsed .user-panel-link {
+    justify-content: center;
+    padding-inline: 0;
+}
+
+.shell-sidebar.is-collapsed .user-meta {
+    display: none;
 }
 
 .user-panel-link:hover,
