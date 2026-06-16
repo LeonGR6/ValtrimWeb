@@ -30,20 +30,20 @@ function getNavItems(t, isAdmin) {
   const items = [
     { id: 'dashboard', to: '/dashboard', label: t('navigation.dashboard'), shortLabel: t('navigation.home'), icon: 'home' },
     {
-      id: 'material-extraction',
-      to: '/material-extraction',
-      label: t('navigation.materialExtraction'),
-      shortLabel: t('navigation.materials'),
-      icon: 'layers',
-    },
-    {
       id: 'order-comparison',
       to: '/order-comparison',
       label: t('navigation.orderComparison'),
       shortLabel: t('navigation.compare'),
       icon: 'results',
     },
-    { id: 'takeoff', to: '/takeoff', label: t('navigation.takeoff'), shortLabel: t('navigation.takeoff'), icon: 'workspace' },
+    // {
+    //   id: 'material-extraction',
+    //   to: '/material-extraction',
+    //   label: t('navigation.materialExtraction'),
+    //   shortLabel: t('navigation.materials'),
+    //   icon: 'layers',
+    // },
+    // { id: 'takeoff', to: '/takeoff', label: t('navigation.takeoff'), shortLabel: t('navigation.takeoff'), icon: 'workspace' },
   ];
 
   if (isAdmin) {

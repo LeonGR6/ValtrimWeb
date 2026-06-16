@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import MatchStatusBadge from './MatchStatusBadge.jsx';
 import '../../../../../styles/poDetail.css';
 
@@ -27,6 +26,45 @@ function ActionButton({ status, onApprove, onReview, onManualMatch }) {
 }
 
 function MoneyCell({ value }) {
+  if (Array.isArray(value)) {
+    const values = value.filter((item) => item !== null && item !== undefined && item !== '');
+
+    if (values.length > 0) {
+      return (
+        <span>
+          {values.map((item) => Number(item).toLocaleString('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })).join(', ')}
+        </span>
+      );
+    }
+  }
+
+  if (typeof value === 'string' && value.includes(',')) {
+    const values = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter(Number.isFinite);
+
+    if (values.length > 0) {
+      return (
+        <span>
+          {values.map((item) => item.toLocaleString('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })).join(', ')}
+        </span>
+      );
+    }
+  }
+
   const amount = Number(value);
 
   if (!Number.isFinite(amount)) {
@@ -49,6 +87,40 @@ function EmptyCell({ value }) {
   return value ?? <span className="pdt-muted">-</span>;
 }
 
+function DescriptionCell({ line, type }) {
+  const description = type === 'pdf'
+    ? line.vendorDescription?.description
+    : line.poDescription;
+  const itemId = type === 'pdf' ? line.vendorDescription?.itemId : null;
+  const emptyText = type === 'pdf' ? 'No PDF line found' : 'No QB line found';
+
+  return (
+    <td className={`pdt-description ${type === 'pdf' ? 'pdt-description--vendor' : ''}`}>
+      {itemId && (
+        <div className="pdt-description-meta">
+          Item ID: {itemId}
+        </div>
+      )}
+      {description ? (
+        <div>{description}</div>
+      ) : (
+        <span className="pdt-no-match">{emptyText}</span>
+      )}
+      {type === 'pdf' && line.sourceMessage && (
+        <div className="pdt-ai-reason">
+          <strong>{line.status === 'suggested' ? 'AI reason' : 'Note'}:</strong> {line.sourceMessage}
+        </div>
+      )}
+      {type === 'qb' && line.matchType && (
+        <div className="pdt-description-meta">
+          {line.matchType.replaceAll('_', ' ').toLowerCase()}
+          {line.financialsMatch ? ' - financials match' : ''}
+        </div>
+      )}
+    </td>
+  );
+}
+
 function VarianceCell({ variance }) {
   if (variance === null || variance === undefined) return <span className="pdt-muted">-</span>;
 
@@ -59,8 +131,7 @@ function VarianceCell({ variance }) {
 }
 
 export default function PODetailTable({ lines = [], totalResults = 0 }) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(totalResults / 5) || 1;
+  const visibleLineCount = lines.filter((line) => !line.isSection).length;
 
   return (
     <div className="pdt-wrapper">
@@ -91,12 +162,22 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
           <tbody>
             {lines.length === 0 ? (
               <tr>
-                <td colSpan="18" className="pdt-empty">
+                <td colSpan="16" className="pdt-empty">
                   No detail lines available yet.
                 </td>
               </tr>
             ) : (
               lines.map((line, i) => (
+                line.isSection ? (
+                  <tr key={line.id ?? i} className="pdt-section-row">
+                    <td colSpan="16">
+                      <div className="pdt-section-title">{line.label}</div>
+                      {line.description && (
+                        <div className="pdt-section-description">{line.description}</div>
+                      )}
+                    </td>
+                  </tr>
+                ) : (
                 <tr key={line.id ?? i} className={`pdt-row pdt-row--${line.status}`}>
                   <td>
                     <MatchStatusBadge status={line.status} />
@@ -116,22 +197,8 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
                   <td><EmptyCell value={line.poLineNumber} /></td>
                   <td><EmptyCell value={line.confQty} /></td>
                   <td><EmptyCell value={line.poQty} /></td>
-                  <td className="pdt-description pdt-description--vendor">
-                    {line.vendorDescription?.itemId ? (
-                      <>
-                        <strong>Item ID:</strong> {line.vendorDescription.itemId}
-                        <br />
-                        <strong>Description:</strong> {line.vendorDescription.description}
-                      </>
-                    ) : (
-                      line.vendorDescription?.description
-                    )}
-                  </td>
-                  <td className="pdt-description">
-                    {line.poDescription ?? (
-                      <span className="pdt-no-match">No QB line found</span>
-                    )}
-                  </td>
+                  <DescriptionCell line={line} type="pdf" />
+                  <DescriptionCell line={line} type="qb" />
                   <td><MoneyCell value={line.confUnitCost} /></td>
                   <td><MoneyCell value={line.poUnitCost} /></td>
                   <td><MoneyCell value={line.confTotal} /></td>
@@ -150,6 +217,7 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
                     />
                   </td>
                 </tr>
+                )
               ))
             )}
           </tbody>
@@ -158,42 +226,9 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
 
       <div className="pdt-footer">
         <span className="pdt-results-count">
-          Showing {lines.length} of {totalResults} results
+          Showing {visibleLineCount} of {totalResults} results
         </span>
-        <div className="pdt-pagination">
-          <button
-            className="pdt-page-btn"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((page) => page - 1)}
-          >
-            Prev
-          </button>
-          {[...Array(Math.min(totalPages, 6))].map((_, i) => (
-            <button
-              key={i}
-              className={`pdt-page-btn ${currentPage === i + 1 ? 'pdt-page-btn--active' : ''}`}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-          {totalPages > 6 && <span className="pdt-page-ellipsis">...</span>}
-          {totalPages > 6 && (
-            <button
-              className={`pdt-page-btn ${currentPage === totalPages ? 'pdt-page-btn--active' : ''}`}
-              onClick={() => setCurrentPage(totalPages)}
-            >
-              {totalPages}
-            </button>
-          )}
-          <button
-            className="pdt-page-btn"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((page) => page + 1)}
-          >
-            Next
-          </button>
-        </div>
+        
       </div>
     </div>
   );

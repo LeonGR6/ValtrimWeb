@@ -9,20 +9,20 @@ export default function PlatformHome() {
   const { t } = useTranslation();
   const modules = useMemo(
     () => [
-      {
-        id: 'takeoff',
-        title: t('platformHome.modules.takeoff.title'),
-        description: t('platformHome.modules.takeoff.description'),
-        to: '/takeoff',
-        status: t('platformHome.modules.takeoff.status'),
-      },
-      {
-        id: 'material-extraction',
-        title: t('platformHome.modules.materialExtraction.title'),
-        description: t('platformHome.modules.materialExtraction.description'),
-        to: '/material-extraction',
-        status: t('platformHome.modules.materialExtraction.status'),
-      },
+      // {
+      //   id: 'takeoff',
+      //   title: t('platformHome.modules.takeoff.title'),
+      //   description: t('platformHome.modules.takeoff.description'),
+      //   to: '/takeoff',
+      //   status: t('platformHome.modules.takeoff.status'),
+      // },
+      // {
+      //   id: 'material-extraction',
+      //   title: t('platformHome.modules.materialExtraction.title'),
+      //   description: t('platformHome.modules.materialExtraction.description'),
+      //   to: '/material-extraction',
+      //   status: t('platformHome.modules.materialExtraction.status'),
+      // },
       {
         id: 'order-comparison',
         title: t('platformHome.modules.orderComparison.title'),

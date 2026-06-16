@@ -8,12 +8,10 @@
       "draft": "Draft",
       "pending": "Pending Approval",
       "approved": "Approved",
-      "poCreated": "PO Created",
       "awaiting": "Awaiting Confirmation",
       "needs": "Needs Review",
       "issues": "Issues",
-      "backordered": "Backordered",
-      "closed": "Closed"
+      "backordered": "Backordered"
     }
   }
 }

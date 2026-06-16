@@ -151,11 +151,71 @@
   color: var(--table-text);
 }
 
+.orders-table th:nth-child(7),
+.orders-table th:nth-child(8),
+.orders-table th:nth-child(9),
+.orders-table td:nth-child(7),
+.orders-table td:nth-child(8),
+.orders-table td:nth-child(9) {
+  white-space: nowrap;
+  min-width: 128px;
+}
+
+.orders-table th:last-child,
+.orders-table td:last-child {
+  text-align: center;
+  white-space: nowrap;
+  width: 72px;
+}
+
 .orders-table button {
   color: var(--table-link) !important;
 }
 .orders-table button:hover {
   color: var(--table-link-hover) !important;
+}
+
+.table-sort-button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted) !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 0;
+  text-align: left;
+  transition: color 0.2s ease;
+}
+
+.table-sort-button:hover,
+.table-sort-button:focus {
+  color: var(--text-main) !important;
+  outline: none;
+}
+
+.table-sort-button.active {
+  color: var(--text-main) !important;
+}
+
+.table-sort-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 12px;
+  opacity: 0.65;
+  transform: translateY(-1px);
+}
+
+.table-sort-button.active .table-sort-indicator {
+  opacity: 1;
 }
 
 /* PO Number Button */
@@ -185,10 +245,45 @@
 }
 
 /* --- Títulos Extras --- */
+.order-delete-btn {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #b91c1c !important;
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+  width: 32px;
+}
+
+.order-delete-btn:hover,
+.order-delete-btn:focus {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b !important;
+  outline: none;
+}
+
+.order-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.order-delete-icon {
+  height: 16px;
+  width: 16px;
+}
+
 .section-header-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
+  gap: 12px;
   margin-top: 1.5rem;
   margin-bottom: 1rem;
 }
@@ -220,6 +315,49 @@
   background-color: #155e30;
 }
 
+.btn-secondary {
+  background-color: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--card-border);
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--table-link);
+  color: var(--table-link);
+}
+
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.order-refresh-btn {
+  min-height: 36px;
+}
+
+.order-state {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  padding: 18px;
+}
+
+.order-state--error {
+  border-color: #fca5a5;
+  color: #b91c1c;
+  margin-bottom: 12px;
+}
+
 /* ==========================================================================
    STATUS BADGES
    ========================================================================== */
@@ -236,8 +374,10 @@
 
 .status-all { background: #e2e8f0; color: #334155; }
 .status-draft { background: #e5e7eb; color: #4b5563; }
+.status-pending { background: #fef3c7; color: #92400e; }
 .status-pending-approval { background: #fef3c7; color: #92400e; }
 .status-approved { background: #dcfce7; color: #166534; }
+.status-rejected { background: #fee2e2; color: #b91c1c; }
 .status-po-created { background: #dbeafe; color: #1d4ed8; }
 .status-awaiting-confirmation { background: #e0f2fe; color: #0369a1; }
 .status-needs-review { background: #fee2e2; color: #b91c1c; }

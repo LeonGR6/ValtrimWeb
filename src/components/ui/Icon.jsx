@@ -15,6 +15,7 @@ const ICON_PATHS = {
   logout: 'M15 12H4 M9 7l-5 5 5 5 M20 4v16',
   panelCollapse: 'M4 5h16v14H4z M9 5v14 M16 9l-3 3 3 3',
   panelExpand: 'M4 5h16v14H4z M9 5v14 M13 9l3 3-3 3',
+  trash: 'M4 7h16 M10 11v6 M14 11v6 M6 7l1 14h10l1-14 M9 7V4h6v3',
 };
 
 export default function Icon({ name, className = '', title }) {

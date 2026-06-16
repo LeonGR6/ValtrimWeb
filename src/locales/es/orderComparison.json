@@ -8,12 +8,10 @@
       "draft": "Borrador",
       "pending": "Pendiente de Aprobación",
       "approved": "Aprobado",
-      "poCreated": "Orden Creada",
       "awaiting": "En Espera de Confirmación",
       "needs": "Requiere Revisión",
       "issues": "Con Problemas",
-      "backordered": "Pedido Pendiente",
-      "closed": "Cerrado"
+      "backordered": "Pedido Pendiente"
     }
   }
 }

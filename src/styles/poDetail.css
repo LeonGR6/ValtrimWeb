@@ -38,6 +38,64 @@
   flex-wrap: wrap;
 }
 
+.pdh-status-select-wrap {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  gap: 7px;
+  padding: 7px 12px;
+  position: relative;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.pdh-status-select-wrap:hover,
+.pdh-status-select-wrap:focus-within {
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+.pdh-status-select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  max-width: 140px;
+  outline: none;
+  padding: 0 18px 0 0;
+  text-transform: uppercase;
+}
+
+.pdh-status-select-wrap::after {
+  border-bottom: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  content: "";
+  height: 7px;
+  margin-left: -13px;
+  pointer-events: none;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.18s ease;
+  width: 7px;
+}
+
+.pdh-status-select-wrap:hover::after,
+.pdh-status-select-wrap:focus-within::after {
+  transform: translateY(1px) rotate(225deg);
+}
+
+.pdh-status-select:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.pdh-status-select option {
+  color: #111827;
+}
+
 .pdh-confirmation {
   font-size: 13px;
   font-weight: 500;
@@ -55,6 +113,127 @@
   color: var(--status-pending-text, #92400e);
 }
 
+.pdh-pdf-button {
+  background: var(--table-link, #1d4ed8);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 7px 12px;
+}
+
+.pdh-pdf-button:hover {
+  background: var(--table-link-hover, #2563eb);
+}
+
+.pdf-modal-overlay {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.72);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.pdf-modal {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.35);
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+  max-width: 1120px;
+  overflow: hidden;
+  width: min(1120px, 96vw);
+}
+
+.pdf-modal-header {
+  align-items: center;
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.pdf-modal-eyebrow {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pdf-modal-header h3 {
+  color: var(--text-main);
+  font-size: 16px;
+  margin: 2px 0 0;
+}
+
+.pdf-modal-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.pdf-modal-open-link,
+.pdf-modal-close {
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.pdf-modal-open-link {
+  color: var(--table-link);
+  text-decoration: none;
+}
+
+.pdf-modal-open-link:hover {
+  color: var(--table-link-hover);
+}
+
+.pdf-modal-close {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.pdf-modal-body {
+  background: var(--page-bg);
+  min-height: 70vh;
+  position: relative;
+}
+
+.pdf-modal-frame {
+  border: 0;
+  display: block;
+  height: 78vh;
+  width: 100%;
+}
+
+.pdf-modal-state {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 14px;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: absolute;
+}
+
+.pdf-modal-state--error {
+  color: #b91c1c;
+}
+
 /* --- Metadata cards --- */
 .pdh-cards {
   display: grid;
@@ -65,7 +244,7 @@
 .pdh-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -74,6 +253,11 @@
 
 .pdh-card--highlight {
   border-color: var(--table-link, #1d4ed8);
+}
+
+.pdh-card--ai {
+  border-color: #7c3aed;
+  background: color-mix(in srgb, #ede9fe 70%, var(--card-bg));
 }
 
 .pdh-card-label {
@@ -106,12 +290,86 @@
   line-height: 1.5;
 }
 
+.pdh-ai-note-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .pdh-ai-note p {
   margin: 0;
 }
 
 .pdh-ai-note p + p {
   margin-top: 8px;
+}
+
+.pdh-ai-details {
+  margin-top: 8px;
+}
+
+.pdh-ai-details summary {
+  color: var(--table-link);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.pdh-ai-details p {
+  margin-top: 8px;
+}
+
+.pdh-warning-note {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, #fffbeb 72%, var(--card-bg));
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pdh-warning-note-header {
+  align-items: center;
+  color: var(--text-main);
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.pdh-warning-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pdh-warning-item {
+  border-top: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+  padding-top: 10px;
+}
+
+.pdh-warning-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.pdh-warning-item strong {
+  color: var(--text-main);
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.pdh-warning-item p {
+  margin: 0;
 }
 
 /* PODetailTable.css */
@@ -188,8 +446,30 @@
   vertical-align: middle;
 }
 
+.pdt-section-row td {
+  background: var(--table-th-bg);
+  border-top: 1px solid var(--card-border);
+  padding: 12px 14px;
+}
+
+.pdt-section-title {
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pdt-section-description {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
 /* Filas con indicador de color lateral */
 .pdt-row--matched td:first-child { border-left: 3px solid #16a34a; }
+.pdt-row--suggested td:first-child { border-left: 3px solid #7c3aed; }
+.pdt-row--suggested td { background: color-mix(in srgb, #f5f3ff 60%, var(--card-bg)); }
 .pdt-row--price-issue td:first-child { border-left: 3px solid #dc2626; }
 .pdt-row--qty-issue td:first-child { border-left: 3px solid #f59e0b; }
 .pdt-row--missing td:first-child { border-left: 3px solid #dc2626; }
@@ -207,6 +487,22 @@
 
 .pdt-description--vendor {
   color: var(--text-muted);
+}
+
+.pdt-description-meta {
+  margin-bottom: 6px;
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pdt-ai-reason {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--table-td-border);
+  color: var(--text-main);
+  font-size: 12px;
 }
 
 .pdt-no-match {
@@ -385,6 +681,9 @@
 
 .msb--matched       { background: #dcfce7; color: #166534; }
 .msb--matched .msb-icon { background: #16a34a; color: #fff; }
+
+.msb--suggested       { background: #ede9fe; color: #5b21b6; }
+.msb--suggested .msb-icon { background: #7c3aed; color: #fff; }
 
 .msb--price-issue   { background: #fee2e2; color: #b91c1c; }
 .msb--price-issue .msb-icon { background: #dc2626; color: #fff; }

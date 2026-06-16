@@ -1,7 +1,40 @@
 import { useNavigate } from 'react-router-dom';
+import Icon from '../../../../components/ui/Icon.jsx';
 import StatusBadge from './StatusBadge';
 
-export default function MainTable({ data }) {
+const sortableColumns = {
+  status: 'Status',
+  poNumber: 'PO #',
+  vendor: 'Vendor',
+  job: 'Job',
+  phaseLots: 'Phase/Lots',
+  requiredDate: 'Required Date',
+  vendorShipDate: 'Vendor Ship Date',
+  vendorOrderDate: 'Vendor Order Date',
+  issues: 'Issues',
+  total: 'Total',
+};
+
+function SortableHeader({ columnKey, sortConfig, onSort }) {
+  const isActive = sortConfig?.key === columnKey;
+  const directionLabel = sortConfig?.direction === 'asc' ? 'ascending' : 'descending';
+
+  return (
+    <button
+      type="button"
+      className={`table-sort-button${isActive ? ' active' : ''}`}
+      aria-label={`Sort by ${sortableColumns[columnKey]}${isActive ? `, currently ${directionLabel}` : ''}`}
+      onClick={() => onSort(columnKey)}
+    >
+      <span>{sortableColumns[columnKey]}</span>
+      <span className="table-sort-indicator" aria-hidden="true">
+        {isActive ? (sortConfig.direction === 'asc' ? '^' : 'v') : '-'}
+      </span>
+    </button>
+  );
+}
+
+export default function MainTable({ data, sortConfig, onSort, onDelete, deletingPoNumber }) {
   const navigate = useNavigate();
 
   return (
@@ -12,16 +45,17 @@ export default function MainTable({ data }) {
           <thead>
             <tr>
               <th>Alert</th>
-              <th>Status</th>
-              <th>PO #</th>
-              <th>Job</th>
-              <th>Phase/Lots</th>
-              <th>Vendor</th>
-              <th>Required Date</th>
-              <th>Vendor Ship Date</th>
-              <th>Total</th>
-              <th>Issues</th>
-              <th>Confirmation</th>
+              <th><SortableHeader columnKey="status" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="poNumber" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="vendor" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="job" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="phaseLots" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="requiredDate" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="vendorShipDate" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="vendorOrderDate" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="issues" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="total" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th>Actions</th>
             </tr>
           </thead>
 
@@ -45,15 +79,25 @@ export default function MainTable({ data }) {
                     {order.poNumber}
                   </button>
                 </td>
+                <td>{order.vendor}</td>
                 <td>{order.job}</td>
                 <td>{order.phaseLots}</td>
-                <td>{order.vendor}</td>
                 <td>{order.requiredDate}</td>
                 <td>{order.vendorShipDate}</td>
-                <td>{order.total}</td>
+                <td>{order.vendorOrderDate}</td>
                 <td>{order.issues}</td>
+                <td>{order.total}</td>
                 <td>
-                  <StatusBadge status={order.confirmation} />
+                  <button
+                    type="button"
+                    className="order-delete-btn"
+                    disabled={deletingPoNumber === order.poNumber}
+                    title={`Delete PO #${order.poNumber}`}
+                    aria-label={`Delete PO #${order.poNumber}`}
+                    onClick={() => onDelete?.(order)}
+                  >
+                    <Icon name="trash" className="order-delete-icon" />
+                  </button>
                 </td>
 
               </tr>

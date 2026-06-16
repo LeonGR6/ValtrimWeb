@@ -1,10 +1,15 @@
-// Statuses: matched | price-issue | qty-issue | missing | extra
+// Statuses: matched | suggested | price-issue | qty-issue | missing | extra
 
 const MATCH_STATUS_CONFIG = {
   matched: {
     label: 'Matched',
-    icon: '✓',
+    icon: 'OK',
     className: 'msb--matched',
+  },
+  suggested: {
+    label: 'AI Suggested',
+    icon: 'AI',
+    className: 'msb--suggested',
   },
   'price-issue': {
     label: 'Price Issue',
