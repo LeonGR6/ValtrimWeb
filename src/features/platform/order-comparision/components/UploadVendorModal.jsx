@@ -17,6 +17,21 @@ const getErrorMessage = (payload, fallback) => (
   fallback
 );
 
+const readResponsePayload = async (response) => {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  const responseText = await response.text();
+  throw new Error(
+    response.ok
+      ? 'n8n did not return a valid JSON response.'
+      : `Upload request failed before reaching n8n (${response.status}). ${responseText || response.statusText}`
+  );
+};
+
 export default function UploadVendorModal({ onClose, onUploadSuccess }) {
   const [status, setStatus] = useState('idle');
   const [file, setFile] = useState(null);
@@ -45,13 +60,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
         body: formData,
       });
 
-      let responseData = null;
-
-      try {
-        responseData = await response.json();
-      } catch (jsonError) {
-        throw new Error('n8n did not return a valid JSON response.', { cause: jsonError });
-      }
+      const responseData = await readResponsePayload(response);
 
       const payload = getPayload(responseData);
 
