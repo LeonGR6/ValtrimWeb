@@ -30,6 +30,7 @@ export default function PlatformHome() {
         to: '/order-comparison',
         status: t('platformHome.modules.orderComparison.status'),
       },
+      //Preview of plattform modules that are in the works - uncomment as needed
     ],
     [t],
   );
