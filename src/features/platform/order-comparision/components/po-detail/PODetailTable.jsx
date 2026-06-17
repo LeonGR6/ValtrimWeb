@@ -1,26 +1,18 @@
 import MatchStatusBadge from './MatchStatusBadge.jsx';
 import '../../../../../styles/poDetail.css';
 
-function ActionButton({ status, onApprove, onReview, onManualMatch }) {
-  if (status === 'matched') {
-    return (
-      <button className="pdt-action-btn pdt-action-btn--approve" onClick={onApprove}>
-        Approved
-      </button>
-    );
-  }
-
-  if (status === 'missing') {
-    return (
-      <button className="pdt-action-btn pdt-action-btn--manual" onClick={onManualMatch}>
-        Manual Match
-      </button>
-    );
+function ActionButton({ line, onEditQuickBooksLine }) {
+  if (!line.poLineNumber || !onEditQuickBooksLine) {
+    return <span className="pdt-muted">-</span>;
   }
 
   return (
-    <button className="pdt-action-btn pdt-action-btn--review" onClick={onReview}>
-      Review
+    <button
+      className="pdt-action-btn pdt-action-btn--manual"
+      type="button"
+      onClick={() => onEditQuickBooksLine(line)}
+    >
+      Edit QB
     </button>
   );
 }
@@ -87,6 +79,57 @@ function EmptyCell({ value }) {
   return value ?? <span className="pdt-muted">-</span>;
 }
 
+const splitGroupedDescription = (value) => (
+  String(value || '')
+    .split(' / ')
+    .map((item) => item.trim())
+    .filter(Boolean)
+);
+
+const splitGroupedMeta = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return [];
+  }
+
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+function GroupedPdfDescription({ line, description }) {
+  const descriptions = splitGroupedDescription(description);
+  const lineNumbers = splitGroupedMeta(line.pdfLineNumber);
+  const quantities = splitGroupedMeta(line.confQty);
+  const itemIds = splitGroupedMeta(line.vendorDescription?.itemId);
+
+  if (descriptions.length < 2) {
+    return <div>{description}</div>;
+  }
+
+  return (
+    <div className="pdt-grouped-description">
+      {descriptions.map((itemDescription, index) => {
+        const lineNumber = lineNumbers[index];
+        const quantity = quantities[index];
+        const itemId = itemIds[index];
+
+        return (
+          <div className="pdt-grouped-item" key={`${line.id ?? 'group'}-${index}`}>
+            <div className="pdt-grouped-item-header">
+              <span>PDF Item {index + 1}</span>
+              {lineNumber && <span>Line {lineNumber}</span>}
+              {quantity && <span>Qty {quantity}</span>}
+              {itemId && <span>{itemId}</span>}
+            </div>
+            <div>{itemDescription}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function DescriptionCell({ line, type }) {
   const description = type === 'pdf'
     ? line.vendorDescription?.description
@@ -102,7 +145,11 @@ function DescriptionCell({ line, type }) {
         </div>
       )}
       {description ? (
-        <div>{description}</div>
+        type === 'pdf' ? (
+          <GroupedPdfDescription line={line} description={description} />
+        ) : (
+          <div>{description}</div>
+        )
       ) : (
         <span className="pdt-no-match">{emptyText}</span>
       )}
@@ -130,7 +177,7 @@ function VarianceCell({ variance }) {
   return <span className="pdt-variance pdt-variance--negative">-${Math.abs(num).toFixed(2)}</span>;
 }
 
-export default function PODetailTable({ lines = [], totalResults = 0 }) {
+export default function PODetailTable({ lines = [], totalResults = 0, onEditQuickBooksLine }) {
   const visibleLineCount = lines.filter((line) => !line.isSection).length;
 
   return (
@@ -210,10 +257,8 @@ export default function PODetailTable({ lines = [], totalResults = 0 }) {
                   <td>{line.vendorShipDate ?? '-'}</td>
                   <td>
                     <ActionButton
-                      status={line.status}
-                      onApprove={() => console.log('approve', line.poLineNumber)}
-                      onReview={() => console.log('review', line.poLineNumber)}
-                      onManualMatch={() => console.log('manual match', line.poLineNumber)}
+                      line={line}
+                      onEditQuickBooksLine={onEditQuickBooksLine}
                     />
                   </td>
                 </tr>

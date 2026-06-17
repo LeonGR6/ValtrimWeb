@@ -1,5 +1,7 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const QB_LINE_UPDATE_WEBHOOK = '/webhook/update-qb-po-line';
+const VENDOR_PDF_UPLOAD_WEBHOOK = import.meta.env.VITE_VENDOR_PDF_UPLOAD_WEBHOOK || '/webhook/upload-pdf-vendor';
 
 const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -204,6 +206,90 @@ export const updatePurchaseOrderWorkflowStatus = async (poNumber, workflowStatus
   return rows[0] ? normalizePurchaseOrderRow(rows[0]) : null;
 };
 
+const readWebhookResponse = async (response, fallbackError) => {
+  const contentType = response.headers.get('content-type') || '';
+  const responseData = contentType.includes('application/json')
+    ? await response.json()
+    : await response.text();
+
+  if (!response.ok) {
+    const details = typeof responseData === 'string'
+      ? responseData
+      : responseData?.user_message || responseData?.error_message || responseData?.message;
+
+    throw new Error(details || fallbackError || `Webhook request failed with ${response.status}`);
+  }
+
+  return responseData;
+};
+
+export const updateQuickBooksPurchaseOrderLine = async ({
+  poNumber,
+  qbLineNumber,
+  currentQty,
+  currentRate,
+  nextQty,
+  nextRate,
+  qbDescription,
+}) => {
+  const response = await fetch(QB_LINE_UPDATE_WEBHOOK, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      po_number: String(poNumber),
+      qb_line: qbLineNumber,
+      current_qty: currentQty,
+      current_rate: currentRate,
+      next_qty: nextQty,
+      next_rate: nextRate,
+      qb_description: qbDescription,
+    }),
+  });
+
+  return readWebhookResponse(response, 'Could not update the QuickBooks purchase order line.');
+};
+
+export const reconcilePurchaseOrderWithCurrentPdf = async (poNumber) => {
+  const currentPdf = await fetchCurrentPurchaseOrderPdf(poNumber);
+  const pdfResponse = await fetch(currentPdf.signedUrl);
+
+  if (!pdfResponse.ok) {
+    throw new Error(`Could not download the current PDF (${pdfResponse.status}).`);
+  }
+
+  const blob = await pdfResponse.blob();
+  const fileName = currentPdf.original_filename || currentPdf.file_name || `${poNumber}.pdf`;
+  const file = new File([blob], fileName, {
+    type: blob.type || currentPdf.mime_type || 'application/pdf',
+  });
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
+    method: 'POST',
+    body: formData,
+  });
+
+  const payload = await readWebhookResponse(
+    response,
+    'Could not reconcile the purchase order after updating QuickBooks.'
+  );
+
+  if (payload?.success === false || payload?.status === 'FLOW_ERROR') {
+    throw new Error(
+      payload?.user_message ||
+      payload?.error_message ||
+      payload?.message ||
+      'The reconciliation workflow failed after updating QuickBooks.'
+    );
+  }
+
+  return payload;
+};
+
 const deleteStorageObjects = async (bucket, paths) => {
   const cleanBucket = String(bucket || '').replace(/^\/+|\/+$/g, '');
   const cleanPaths = [...new Set(paths.map((path) => normalizeStoragePath(cleanBucket, path)).filter(Boolean))];
@@ -366,9 +452,9 @@ export const fetchCurrentPurchaseOrderPdf = async (poNumber) => {
     throw new Error('No current PDF was found for this purchase order.');
   }
 
-  let signedUrl = '';
+  let signedUrl;
   let storagePath = normalizeStoragePath(file.bucket, file.storage_path);
-  let signError = null;
+  let signError;
 
   try {
     signedUrl = await signStorageObject(file.bucket, storagePath);
@@ -381,7 +467,8 @@ export const fetchCurrentPurchaseOrderPdf = async (poNumber) => {
     } catch (listError) {
       throw new Error(
         `Could not open the current PDF. Bucket: ${file.bucket}. Path: ${normalizeStoragePath(file.bucket, file.storage_path)}. ` +
-        `Storage error: ${signError?.message || listError.message}`
+        `Storage error: ${signError?.message || listError.message}`,
+        { cause: listError }
       );
     }
   }

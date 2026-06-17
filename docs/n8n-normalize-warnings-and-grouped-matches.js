@@ -24,6 +24,75 @@ function joinValues(values, separator = ', ') {
   return visible.length ? visible.join(separator) : null;
 }
 
+function normalizeDescription(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getPdfHand(item) {
+  const value = normalizeDescription(`${item?.description || ''} ${item?.pdf_description || ''}`);
+
+  if (/\b(?:LH|LEFT\s+HAND|HANDING\s+L|HAND\s*:\s*L)\b/.test(value)) return 'L';
+  if (/\b(?:RH|RIGHT\s+HAND|HANDING\s+R|HAND\s*:\s*R)\b/.test(value)) return 'R';
+
+  return null;
+}
+
+function handSortValue(item) {
+  const hand = getPdfHand(item);
+
+  if (hand === 'L') return 0;
+  if (hand === 'R') return 1;
+
+  return 2;
+}
+
+function getPdfSourceLines(data) {
+  return Array.isArray(data.pdfData?.line_items)
+    ? data.pdfData.line_items
+    : [];
+}
+
+function sameMoney(a, b) {
+  return Math.abs(toNumber(a) - toNumber(b)) <= 0.01;
+}
+
+function hydratePdfItems(pdfItems, data) {
+  const sourceLines = getPdfSourceLines(data);
+  const usedSourceIndexes = new Set();
+
+  return pdfItems
+    .map((item) => {
+      if (hasValue(item.line)) return item;
+
+      const itemDescription = normalizeDescription(item.description);
+      const sourceIndex = sourceLines.findIndex((source, index) => {
+        if (usedSourceIndexes.has(index)) return false;
+
+        const sourceDescription = normalizeDescription(source.description);
+
+        return (
+          sourceDescription === itemDescription &&
+          sameMoney(source.extd_price, item.extd_price) &&
+          sameMoney(source.unit_price, item.unit_price) &&
+          toNumber(source.ordered ?? source.qty ?? source.pdf_qty) === toNumber(item.qty)
+        );
+      });
+
+      if (sourceIndex === -1) return item;
+
+      usedSourceIndexes.add(sourceIndex);
+      return {
+        ...item,
+        line: sourceLines[sourceIndex].line ?? item.line,
+        item_id: item.item_id ?? sourceLines[sourceIndex].item_id ?? null,
+      };
+    })
+    .sort((a, b) => handSortValue(a) - handSortValue(b));
+}
+
 function splitLineRefs(value) {
   return String(value ?? '')
     .split(',')
@@ -42,7 +111,10 @@ function groupedWarningKey(warning) {
 
 function isGroupedWarningAlreadyMatched(warning, matchedLines) {
   const qbLine = lineKey(warning.qb_line);
-  const pdfItems = Array.isArray(warning.pdf_items) ? warning.pdf_items : [];
+  const pdfItems = hydratePdfItems(
+    Array.isArray(warning.pdf_items) ? warning.pdf_items : [],
+    data
+  );
   const warningPdfLines = pdfItems.map((line) => lineKey(line.line)).filter(Boolean);
 
   return matchedLines.some((line) => {
@@ -62,7 +134,10 @@ function isGroupedWarningAlreadyMatched(warning, matchedLines) {
 }
 
 function warningToMatchedLine(warning) {
-  const pdfItems = Array.isArray(warning.pdf_items) ? warning.pdf_items : [];
+  const pdfItems = hydratePdfItems(
+    Array.isArray(warning.pdf_items) ? warning.pdf_items : [],
+    data
+  );
   const pdfTotal = roundMoney(pdfItems.reduce((sum, line) => sum + toNumber(line.extd_price), 0));
 
   return {
