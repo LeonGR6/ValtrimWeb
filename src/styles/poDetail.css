@@ -385,7 +385,8 @@
 }
 
 .pdt-scroll {
-  overflow-x: auto;
+  max-height: calc(100vh - 280px);
+  overflow: auto;
 }
 
 /* ==========================================
@@ -423,7 +424,8 @@
    ========================================== */
 .pdt-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   min-width: 1900px; /* fuerza scroll horizontal en pantallas chicas */
 }
 
@@ -436,6 +438,9 @@
   font-weight: 600;
   white-space: nowrap;
   border-bottom: 1px solid var(--card-border);
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .pdt-table td {
@@ -487,6 +492,41 @@
 
 .pdt-description--vendor {
   color: var(--text-muted);
+}
+
+.pdt-grouped-description {
+  display: grid;
+  gap: 10px;
+}
+
+.pdt-grouped-item {
+  border-left: 2px solid var(--card-border);
+  padding-left: 10px;
+}
+
+.pdt-grouped-item + .pdt-grouped-item {
+  border-top: 1px solid var(--table-td-border);
+  padding-top: 10px;
+}
+
+.pdt-grouped-item-header {
+  align-items: center;
+  color: var(--text-main);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 6px;
+  line-height: 1.3;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.pdt-grouped-item-header span {
+  background: var(--table-th-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 2px 7px;
 }
 
 .pdt-description-meta {
@@ -652,6 +692,227 @@
 .pdt-page-ellipsis {
   color: var(--text-muted);
   padding: 0 4px;
+}
+
+/* ==========================================
+   EDIT QUICKBOOKS LINE MODAL
+   ========================================== */
+.pdt-edit-overlay {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.68);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.pdt-edit-modal {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.32);
+  color: var(--text-main);
+  overflow: hidden;
+  width: min(520px, 94vw);
+}
+
+.pdt-edit-header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.pdt-edit-eyebrow {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pdt-edit-header h3 {
+  font-size: 18px;
+  margin: 4px 0 0;
+}
+
+.pdt-edit-close {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  color: var(--text-main);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.pdt-edit-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.pdt-edit-description {
+  background: var(--table-th-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 12px;
+}
+
+.pdt-edit-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pdt-edit-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.pdt-edit-grid span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pdt-edit-grid input {
+  background: var(--card-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--text-main);
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.pdt-edit-grid input:focus {
+  border-color: var(--table-link);
+  outline: none;
+}
+
+.pdt-edit-error {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.pdt-edit-progress {
+  align-items: flex-start;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.pdt-edit-progress--success {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.pdt-edit-progress-icon {
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  height: 16px;
+  margin-top: 2px;
+  width: 16px;
+  animation: pdt-spin 0.8s linear infinite;
+}
+
+.pdt-edit-progress--success .pdt-edit-progress-icon {
+  animation: none;
+  background: currentColor;
+  border-color: currentColor;
+  position: relative;
+}
+
+.pdt-edit-progress--success .pdt-edit-progress-icon::after {
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  content: '';
+  height: 8px;
+  left: 5px;
+  position: absolute;
+  top: 2px;
+  transform: rotate(45deg);
+  width: 4px;
+}
+
+.pdt-edit-progress-title {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pdt-edit-progress-message {
+  font-size: 13px;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+@keyframes pdt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pdt-edit-actions {
+  align-items: center;
+  border-top: 1px solid var(--card-border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 16px;
+}
+
+.pdt-edit-primary,
+.pdt-edit-secondary {
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 14px;
+}
+
+.pdt-edit-primary {
+  background: var(--table-link);
+  border: 1px solid transparent;
+  color: #fff;
+}
+
+.pdt-edit-secondary {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+}
+
+.pdt-edit-primary:disabled,
+.pdt-edit-secondary:disabled,
+.pdt-edit-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 560px) {
+  .pdt-edit-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ==========================================
