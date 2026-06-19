@@ -715,7 +715,7 @@
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.32);
   color: var(--text-main);
   overflow: hidden;
-  width: min(520px, 94vw);
+  width: min(780px, 94vw);
 }
 
 .pdt-edit-header {
@@ -765,6 +765,97 @@
   font-size: 13px;
   line-height: 1.45;
   padding: 12px;
+}
+
+.pdt-edit-suggestion {
+  align-items: center;
+  background: color-mix(in srgb, #ede9fe 72%, var(--card-bg));
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  color: #4c1d95;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.pdt-edit-suggestion-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.pdt-edit-suggestion strong {
+  font-size: 20px;
+}
+
+.pdt-edit-suggestion-btn {
+  background: #7c3aed;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 12px;
+}
+
+.pdt-edit-suggestion-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pdt-edit-comparison {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pdt-edit-comparison section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pdt-edit-section-title {
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pdt-edit-facts {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.pdt-edit-facts div {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
+.pdt-edit-facts dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.pdt-edit-facts dd {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
 }
 
 .pdt-edit-grid {
@@ -910,8 +1001,17 @@
 }
 
 @media (max-width: 560px) {
+  .pdt-edit-comparison {
+    grid-template-columns: 1fr;
+  }
+
   .pdt-edit-grid {
     grid-template-columns: 1fr;
+  }
+
+  .pdt-edit-suggestion {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

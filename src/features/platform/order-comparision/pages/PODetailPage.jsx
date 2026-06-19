@@ -80,6 +80,30 @@ const formatCurrency = (value) => {
   })}`;
 };
 
+const formatPlainNumber = (value) => {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return value ?? '-';
+  }
+
+  return amount.toLocaleString('en-US', {
+    maximumFractionDigits: 2,
+  });
+};
+
+const isSingleNumericValue = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return false;
+  }
+
+  if (typeof value === 'string' && value.includes(',')) {
+    return false;
+  }
+
+  return Number.isFinite(Number(value));
+};
+
 const formatStatus = (status) => {
   return formatWorkflowStatus(status);
 };
@@ -223,6 +247,38 @@ const splitLineRefs = (value) => {
     .filter(Boolean);
 };
 
+const getSuggestedPdfLineRef = (line) => {
+  if (line && typeof line === 'object') {
+    return line.pdf_line ?? line.pdf_line_num ?? line.line ?? null;
+  }
+
+  return line;
+};
+
+const getSuggestedQbLineRef = (line) => {
+  if (line && typeof line === 'object') {
+    return line.qb_line ?? line.qb_line_num ?? line.line ?? null;
+  }
+
+  return line;
+};
+
+const uniqueByLineRef = (lines, lineKey) => {
+  const seen = new Set();
+
+  return lines.filter((line) => {
+    const refs = splitLineRefs(line?.[lineKey]);
+    const key = refs.length > 0 ? refs.join('|') : normalizeLineRef(line?.[lineKey]);
+
+    if (!key || seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+};
+
 const hasSameLineRefs = (sourceRefs, matchedRefs) => (
   sourceRefs.length > 0 && sourceRefs.every((lineRef) => matchedRefs.includes(normalizeLineRef(lineRef)))
 );
@@ -311,12 +367,24 @@ const normalizeDetailLine = (sourceLine, index, po) => {
 };
 
 const buildSuggestedLine = (match, index, po, lineLookup) => {
-  const pdfLines = (match.pdf_lines || [])
-    .map((line) => normalizeSuggestedPdfLine(line, lineLookup))
-    .filter(Boolean);
-  const qbLines = (match.qb_lines || [])
-    .map((line) => normalizeSuggestedQbLine(line, lineLookup))
-    .filter(Boolean);
+  const sourcePdfLineNumbers = (match.pdf_lines || [])
+    .map(getSuggestedPdfLineRef)
+    .filter((lineNumber) => lineNumber !== null && lineNumber !== undefined);
+  const sourceQbLineNumbers = (match.qb_lines || [])
+    .map(getSuggestedQbLineRef)
+    .filter((lineNumber) => lineNumber !== null && lineNumber !== undefined);
+  const pdfLines = uniqueByLineRef(
+    (match.pdf_lines || [])
+      .map((line) => normalizeSuggestedPdfLine(line, lineLookup))
+      .filter(Boolean),
+    'pdf_line'
+  );
+  const qbLines = uniqueByLineRef(
+    (match.qb_lines || [])
+      .map((line) => normalizeSuggestedQbLine(line, lineLookup))
+      .filter(Boolean),
+    'qb_line'
+  );
   const pdfLineNumbers = pdfLines.map((line) => line.pdf_line).filter((lineNumber) => lineNumber !== null && lineNumber !== undefined);
   const qbLineNumbers = qbLines.map((line) => line.qb_line).filter((lineNumber) => lineNumber !== null && lineNumber !== undefined);
   const pdfTotal = sumNumbers(pdfLines.map((line) => line.pdf_extd_price));
@@ -349,8 +417,8 @@ const buildSuggestedLine = (match, index, po, lineLookup) => {
     matchType: match.match_type,
     financialsMatch: match.financials_match,
     needsHumanReview: match.needs_human_review,
-    sourcePdfLineNumbers: pdfLineNumbers,
-    sourceQbLineNumbers: qbLineNumbers,
+    sourcePdfLineNumbers,
+    sourceQbLineNumbers,
   };
 };
 
@@ -630,10 +698,14 @@ export default function PODetailPage() {
   };
 
   const handleEditQbLine = (line) => {
+    const suggestedRate = line.status === 'suggested' && isSingleNumericValue(line.confUnitCost)
+      ? line.confUnitCost
+      : null;
+
     setEditingQbLine(line);
     setQbLineDraft({
       qty: line.poQty ?? '',
-      rate: line.poUnitCost ?? '',
+      rate: suggestedRate ?? line.poUnitCost ?? '',
     });
     setQbLineUpdateState({
       error: '',
@@ -770,6 +842,8 @@ export default function PODetailPage() {
     success: 'Updated',
   }[qbLineUpdateState.phase] || 'Save in QuickBooks';
 
+  const hasPdfRateSuggestion = editingQbLine?.status === 'suggested' && isSingleNumericValue(editingQbLine.confUnitCost);
+
   return (
     <div className="order-page">
       <button
@@ -890,9 +964,64 @@ export default function PODetailPage() {
             </div>
 
             <div className="pdt-edit-body">
-              <div className="pdt-edit-description">
-                {editingQbLine.poDescription || 'No QuickBooks description available.'}
-              </div>
+              {hasPdfRateSuggestion && (
+                <div className="pdt-edit-suggestion">
+                  <div>
+                    <span className="pdt-edit-suggestion-label">Suggested QB rate</span>
+                    <strong>{formatCurrency(editingQbLine.confUnitCost)}</strong>
+                  </div>
+                  <button
+                    className="pdt-edit-suggestion-btn"
+                    disabled={qbLineUpdateState.isSaving}
+                    type="button"
+                    onClick={() => handleQbLineDraftChange('rate', editingQbLine.confUnitCost)}
+                  >
+                    Use PDF unit price
+                  </button>
+                </div>
+              )}
+
+              {editingQbLine.status === 'suggested' ? (
+                <div className="pdt-edit-comparison">
+                  <section>
+                    <div className="pdt-edit-section-title">PDF line</div>
+                    <div className="pdt-edit-description">
+                      {editingQbLine.vendorDescription?.description || 'No PDF description available.'}
+                    </div>
+                    <dl className="pdt-edit-facts">
+                      <div>
+                        <dt>Qty</dt>
+                        <dd>{formatPlainNumber(editingQbLine.confQty)}</dd>
+                      </div>
+                      <div>
+                        <dt>Unit price</dt>
+                        <dd>{formatCurrency(editingQbLine.confUnitCost) || '-'}</dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section>
+                    <div className="pdt-edit-section-title">QuickBooks line</div>
+                    <div className="pdt-edit-description">
+                      {editingQbLine.poDescription || 'No QuickBooks description available.'}
+                    </div>
+                    <dl className="pdt-edit-facts">
+                      <div>
+                        <dt>Qty</dt>
+                        <dd>{formatPlainNumber(editingQbLine.poQty)}</dd>
+                      </div>
+                      <div>
+                        <dt>Rate</dt>
+                        <dd>{formatCurrency(editingQbLine.poUnitCost) || '-'}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                </div>
+              ) : (
+                <div className="pdt-edit-description">
+                  {editingQbLine.poDescription || 'No QuickBooks description available.'}
+                </div>
+              )}
 
               <div className="pdt-edit-grid">
                 <label>

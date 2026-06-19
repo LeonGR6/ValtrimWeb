@@ -1,6 +1,34 @@
 import MatchStatusBadge from './MatchStatusBadge.jsx';
 import '../../../../../styles/poDetail.css';
 
+const parseMoneyValue = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const sanitizedValue = String(value).replace(/[^0-9.-]/g, '');
+  const amount = Number(sanitizedValue);
+
+  return Number.isFinite(amount) ? amount : null;
+};
+
+const formatMoney = (value) => {
+  const amount = parseMoneyValue(value);
+
+  if (amount === null) {
+    return null;
+  }
+
+  return `$${amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
 function ActionButton({ line, onEditQuickBooksLine }) {
   if (!line.poLineNumber || !onEditQuickBooksLine) {
     return <span className="pdt-muted">-</span>;
@@ -24,12 +52,7 @@ function MoneyCell({ value }) {
     if (values.length > 0) {
       return (
         <span>
-          {values.map((item) => Number(item).toLocaleString('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })).join(', ')}
+          {values.map(formatMoney).filter(Boolean).join(', ')}
         </span>
       );
     }
@@ -40,37 +63,27 @@ function MoneyCell({ value }) {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean)
-      .map(Number)
-      .filter(Number.isFinite);
+      .map(parseMoneyValue)
+      .filter((item) => item !== null);
 
     if (values.length > 0) {
       return (
         <span>
-          {values.map((item) => item.toLocaleString('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })).join(', ')}
+          {values.map(formatMoney).filter(Boolean).join(', ')}
         </span>
       );
     }
   }
 
-  const amount = Number(value);
+  const amount = parseMoneyValue(value);
 
-  if (!Number.isFinite(amount)) {
+  if (amount === null) {
     return <span className="pdt-muted">-</span>;
   }
 
   return (
     <span>
-      {amount.toLocaleString('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}
+      {formatMoney(amount)}
     </span>
   );
 }
