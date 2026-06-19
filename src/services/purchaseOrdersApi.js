@@ -1,7 +1,7 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const QB_LINE_UPDATE_WEBHOOK = '/webhook/update-qb-po-line';
-const VENDOR_PDF_UPLOAD_WEBHOOK = import.meta.env.VITE_VENDOR_PDF_UPLOAD_WEBHOOK || '/webhook/upload-pdf-vendor';
+export const VENDOR_PDF_UPLOAD_WEBHOOK = '/webhook/upload-pdf-vendor';
 
 const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -24,16 +24,42 @@ export const formatDisplayDate = (value) => {
   if (!value) return '';
 
   const raw = String(value).trim();
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  const normalizeYear = (yearValue) => {
+    const year = Number(yearValue);
+
+    if (!Number.isFinite(year)) return null;
+    if (year < 100) return year >= 70 ? 1900 + year : 2000 + year;
+
+    return year;
+  };
+
+  const formatParts = (monthValue, dayValue, yearValue) => {
+    const month = Number(monthValue);
+    const day = Number(dayValue);
+    const year = normalizeYear(yearValue);
+
+    if (!month || !day || !year) return raw;
+
+    return `${month}/${day}/${year}`;
+  };
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
 
   if (isoMatch) {
-    return `${isoMatch[2]}-${isoMatch[3]}-${isoMatch[1]}`;
+    return formatParts(isoMatch[2], isoMatch[3], isoMatch[1]);
   }
 
-  const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
 
   if (slashMatch) {
-    return `${slashMatch[1].padStart(2, '0')}-${slashMatch[2].padStart(2, '0')}-${slashMatch[3]}`;
+    return formatParts(slashMatch[1], slashMatch[2], slashMatch[3]);
+  }
+
+  const dashMatch = raw.match(/^(\d{1,2})-(\d{1,2})-(\d{2}|\d{4})$/);
+
+  if (dashMatch) {
+    return formatParts(dashMatch[1], dashMatch[2], dashMatch[3]);
   }
 
   return raw;
@@ -112,7 +138,7 @@ export const normalizePurchaseOrderRow = (row) => {
     supplier: row.supplier ?? latestJson.supplier,
     job: row.job ?? latestJson.job,
     phaseLots: row.phase_lots ?? latestJson.phaseLots ?? latestJson.phase_lots,
-    order_date: row.order_date ?? latestJson.order_date,
+    ack_date: row.order_date ?? latestJson.order_date,
     required_date: row.required_date ?? latestJson.required_date,
     ship_date: row.ship_date ?? latestJson.ship_date,
     totalPdf: row.total_pdf ?? latestJson.totalPdf ?? latestJson.total_pdf,
@@ -140,7 +166,7 @@ export const normalizePurchaseOrderRow = (row) => {
     vendor: row.supplier ?? '',
     requiredDate: formatDisplayDate(row.required_date),
     vendorShipDate: formatDisplayDate(row.ship_date) || 'PENDING',
-    vendorOrderDate: formatDisplayDate(row.order_date),
+    ackDate: formatDisplayDate(row.order_date) || 'PENDING',
     total: formatCurrency(row.total_pdf ?? row.total_qb),
     issues: String(getIssueCount(reconciliation, row)),
     confirmation: formatWorkflowStatus(workflowStatus),

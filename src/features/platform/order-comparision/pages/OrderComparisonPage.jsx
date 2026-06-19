@@ -9,16 +9,33 @@ import SearchBar from '../components/SearchBar';
 import MainTable from '../components/MainTable';
 import UploadVendorModal from '../components/UploadVendorModal';
 
-const dateSortKeys = ['requiredDate', 'vendorShipDate', 'vendorOrderDate'];
+const dateSortKeys = ['requiredDate', 'vendorShipDate', 'ackDate'];
 
 const parseDateValue = (value) => {
   if (!value) return 0;
 
-  const [month, day, year] = String(value).split('-').map(Number);
+  const raw = String(value).trim();
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const usMatch = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);
 
-  if (!month || !day || !year) return 0;
+  const normalizeYear = (yearValue) => {
+    const year = Number(yearValue);
 
-  return new Date(year, month - 1, day).getTime();
+    if (!Number.isFinite(year)) return null;
+    if (year < 100) return year >= 70 ? 1900 + year : 2000 + year;
+
+    return year;
+  };
+
+  const parts = isoMatch
+    ? { month: Number(isoMatch[2]), day: Number(isoMatch[3]), year: normalizeYear(isoMatch[1]) }
+    : usMatch
+      ? { month: Number(usMatch[1]), day: Number(usMatch[2]), year: normalizeYear(usMatch[3]) }
+      : null;
+
+  if (!parts?.month || !parts?.day || !parts?.year) return 0;
+
+  return new Date(parts.year, parts.month - 1, parts.day).getTime();
 };
 
 const parseMoneyValue = (value) => Number(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;

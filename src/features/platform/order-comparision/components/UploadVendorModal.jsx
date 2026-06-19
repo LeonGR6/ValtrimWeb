@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { VENDOR_PDF_UPLOAD_WEBHOOK } from '../../../../services/purchaseOrdersApi';
 import '../../../../styles/uploadModal.css';
 
 const getPayload = (responseData) => {
@@ -55,7 +56,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
     formData.append('file', file);
 
     try {
-      const response = await fetch('/webhook/upload-pdf-vendor', {
+      const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
         method: 'POST',
         body: formData,
       });

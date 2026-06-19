@@ -10,7 +10,7 @@ const sortableColumns = {
   phaseLots: 'Phase/Lots',
   requiredDate: 'Required Date',
   vendorShipDate: 'Vendor Ship Date',
-  vendorOrderDate: 'Vendor Order Date',
+  ackDate: 'Ack Date',
   issues: 'Issues',
   total: 'Total',
 };
@@ -52,7 +52,7 @@ export default function MainTable({ data, sortConfig, onSort, onDelete, deleting
               <th><SortableHeader columnKey="phaseLots" sortConfig={sortConfig} onSort={onSort} /></th>
               <th><SortableHeader columnKey="requiredDate" sortConfig={sortConfig} onSort={onSort} /></th>
               <th><SortableHeader columnKey="vendorShipDate" sortConfig={sortConfig} onSort={onSort} /></th>
-              <th><SortableHeader columnKey="vendorOrderDate" sortConfig={sortConfig} onSort={onSort} /></th>
+              <th><SortableHeader columnKey="ackDate" sortConfig={sortConfig} onSort={onSort} /></th>
               <th><SortableHeader columnKey="issues" sortConfig={sortConfig} onSort={onSort} /></th>
               <th><SortableHeader columnKey="total" sortConfig={sortConfig} onSort={onSort} /></th>
               <th>Actions</th>
@@ -84,7 +84,7 @@ export default function MainTable({ data, sortConfig, onSort, onDelete, deleting
                 <td>{order.phaseLots}</td>
                 <td>{order.requiredDate}</td>
                 <td>{order.vendorShipDate}</td>
-                <td>{order.vendorOrderDate}</td>
+                <td>{order.ackDate}</td>
                 <td>{order.issues}</td>
                 <td>{order.total}</td>
                 <td>

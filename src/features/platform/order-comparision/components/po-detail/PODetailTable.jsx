@@ -79,12 +79,18 @@ function EmptyCell({ value }) {
   return value ?? <span className="pdt-muted">-</span>;
 }
 
-const splitGroupedDescription = (value) => (
-  String(value || '')
+const splitGroupedDescription = (value, expectedCount) => {
+  if (expectedCount < 2) {
+    return [];
+  }
+
+  const descriptions = String(value || '')
     .split(' / ')
     .map((item) => item.trim())
-    .filter(Boolean)
-);
+    .filter(Boolean);
+
+  return descriptions.length === expectedCount ? descriptions : [];
+};
 
 const splitGroupedMeta = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -98,10 +104,11 @@ const splitGroupedMeta = (value) => {
 };
 
 function GroupedPdfDescription({ line, description }) {
-  const descriptions = splitGroupedDescription(description);
   const lineNumbers = splitGroupedMeta(line.pdfLineNumber);
   const quantities = splitGroupedMeta(line.confQty);
   const itemIds = splitGroupedMeta(line.vendorDescription?.itemId);
+  const expectedGroupCount = Math.max(lineNumbers.length, quantities.length, itemIds.length);
+  const descriptions = splitGroupedDescription(description, expectedGroupCount);
 
   if (descriptions.length < 2) {
     return <div>{description}</div>;
