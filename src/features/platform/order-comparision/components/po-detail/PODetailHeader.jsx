@@ -24,6 +24,25 @@ function formatWarningDetail(warning) {
   return parts.join(' · ');
 }
 
+function formatCurrencyDisplay(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const amount = typeof value === 'number'
+    ? value
+    : Number(String(value).replace(/[^0-9.-]/g, ''));
+
+  if (!Number.isFinite(amount)) {
+    return value;
+  }
+
+  return `$${amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 export default function PODetailHeader({
   po,
   workflowStatusValue = 'PENDING',
@@ -34,6 +53,8 @@ export default function PODetailHeader({
   const isConfirmed = po.confirmation === 'Approved';
   const confidence = po.aiConfidence != null ? `${Math.round(Number(po.aiConfidence))}%` : null;
   const workflowStatusClass = po.status?.toLowerCase().replace(/\s+/g, '-');
+  const totalPdf = formatCurrencyDisplay(po.totalPdf);
+  const totalQb = formatCurrencyDisplay(po.totalQb);
 
   const handleStatusChange = (event) => {
     onWorkflowStatusChange?.(event.target.value);
@@ -94,16 +115,16 @@ export default function PODetailHeader({
           <span className="pdh-card-label">Vendor Ship Date</span>
           <span className="pdh-card-value">{po.vendorShipDate ?? '-'}</span>
         </div>
-        {po.totalPdf && (
+        {totalPdf && (
           <div className="pdh-card pdh-card--highlight">
             <span className="pdh-card-label">PDF Total</span>
-            <span className="pdh-card-value pdh-total">{po.totalPdf}</span>
+            <span className="pdh-card-value pdh-total">{totalPdf}</span>
           </div>
         )}
-        {po.totalQb && (
+        {totalQb && (
           <div className="pdh-card pdh-card--highlight">
             <span className="pdh-card-label">QB Total</span>
-            <span className="pdh-card-value pdh-total">{po.totalQb}</span>
+            <span className="pdh-card-value pdh-total">{totalQb}</span>
           </div>
         )}
         {po.matchStatus && (

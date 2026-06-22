@@ -171,7 +171,7 @@ export default function App() {
           title={routeMeta.title}
           actions={
             <>
-              <div className="segmented-control language-switch" role="group" aria-label={t('common.language')}>
+              {/* <div className="segmented-control language-switch" role="group" aria-label={t('common.language')}>
                 <Button
                   appearance="segment"
                   size="sm"
@@ -188,7 +188,7 @@ export default function App() {
                 >
                   EN
                 </Button>
-              </div>
+              </div> */}
               <Button
                 className="theme-switch-button"
                 appearance="ghost"
