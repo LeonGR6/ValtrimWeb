@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 import '../../../../styles/orderComparison.css';
 import { deletePurchaseOrder, fetchPurchaseOrders } from '../../../../services/purchaseOrdersApi';
@@ -56,8 +57,78 @@ const getSortableValue = (order, key) => {
   return String(order[key] ?? '').toLowerCase();
 };
 
+const normalizePoNumber = (value) => {
+  const poNumber = String(value ?? '').trim();
+  return poNumber || null;
+};
+
+const findPoNumberInPayload = (value, seen = new Set(), allowPrimitive = true) => {
+  if (!value || typeof value !== 'object') {
+    return allowPrimitive ? normalizePoNumber(value) : null;
+  }
+
+  if (seen.has(value)) {
+    return null;
+  }
+
+  seen.add(value);
+
+  const directPoNumber = normalizePoNumber(
+    value.po_number ?? value.poNumber ?? value.purchase_order_number ?? value.purchaseOrderNumber
+  );
+
+  if (directPoNumber) {
+    return directPoNumber;
+  }
+
+  const preferredContainers = [
+    value.json,
+    value.data,
+    value.body,
+    value.result,
+    value.payload,
+    value.purchase_order,
+    value.purchaseOrder,
+    value.order,
+    value.row,
+    value.saved_row,
+    value.savedRow,
+  ];
+
+  for (const container of preferredContainers) {
+    const nestedPoNumber = findPoNumberInPayload(container, seen, false);
+
+    if (nestedPoNumber) {
+      return nestedPoNumber;
+    }
+  }
+
+  for (const nestedValue of Object.values(value)) {
+    const nestedPoNumber = findPoNumberInPayload(nestedValue, seen, false);
+
+    if (nestedPoNumber) {
+      return nestedPoNumber;
+    }
+  }
+
+  return null;
+};
+
+const getBatchResults = (uploadPayload) => {
+  if (Array.isArray(uploadPayload)) {
+    return uploadPayload;
+  }
+
+  if (Array.isArray(uploadPayload?.results)) {
+    return uploadPayload.results;
+  }
+
+  return null;
+};
+
 export default function OrderComparisonPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('All');
   const [search, setSearch] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'poNumber', direction: 'asc' });
@@ -145,9 +216,36 @@ export default function OrderComparisonPage() {
     });
   };
 
-  const handleUploadSuccess = async () => {
+  const handleUploadSuccess = async (uploadPayload) => {
     setIsUploadModalOpen(false);
-    await loadOrders();
+    const batchResults = getBatchResults(uploadPayload);
+
+    if (batchResults) {
+      const successfulCount = batchResults.filter((result) => result.status === 'success').length;
+
+      await loadOrders();
+
+      if (successfulCount === 0) {
+        setLoadError('The batch finished, but no PDFs were saved successfully.');
+      }
+
+      return;
+    }
+
+    const poNumber = findPoNumberInPayload(uploadPayload);
+
+    if (!poNumber) {
+      setLoadError('The upload finished, but the workflow response did not include a PO number.');
+      await loadOrders();
+      return;
+    }
+
+    navigate(`/order-comparison/${encodeURIComponent(poNumber)}`, {
+      state: {
+        uploadedPoNumber: poNumber,
+        uploadPayload,
+      },
+    });
   };
 
   const handleDeletePurchaseOrder = async (order) => {

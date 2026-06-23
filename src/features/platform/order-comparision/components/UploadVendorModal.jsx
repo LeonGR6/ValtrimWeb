@@ -33,93 +33,185 @@ const readResponsePayload = async (response) => {
   );
 };
 
+const createUploadResults = (selectedFiles) => (
+  selectedFiles.map((selectedFile, index) => ({
+    id: `${index}-${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}`,
+    fileName: selectedFile.name,
+    status: 'queued',
+  }))
+);
+
+const getResultLabel = (result) => {
+  if (result.status === 'success') return 'OK';
+  if (result.status === 'error') return 'Error';
+  if (result.status === 'processing') return 'Processing';
+
+  return 'Queued';
+};
+
+const getResultMessage = (result) => {
+  if (result.status === 'success') {
+    const poNumber = result.payload?.po_number || result.payload?.poNumber;
+    return poNumber ? `PO ${poNumber}` : 'Saved successfully';
+  }
+
+  if (result.status === 'error') {
+    return result.error || 'Could not process this PDF.';
+  }
+
+  return '';
+};
+
 export default function UploadVendorModal({ onClose, onUploadSuccess }) {
   const [status, setStatus] = useState('idle');
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [savedData, setSavedData] = useState(null);
+  const [results, setResults] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
 
   const handleFileChange = (event) => {
-    if (event.target.files && event.target.files[0]) {
-      setFile(event.target.files[0]);
+    const selectedFiles = Array.from(event.target.files || []);
+    setFiles(selectedFiles);
+    setResults(createUploadResults(selectedFiles));
+    setSavedData(null);
+    setErrorMessage('');
+  };
+
+  const processSingleFile = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const responseData = await readResponsePayload(response);
+    const payload = getPayload(responseData);
+
+    if (!response.ok) {
+      throw new Error(getErrorMessage(payload, 'Error processing the PDF in n8n.'));
     }
+
+    if (payload?.success === false || payload?.status === 'FLOW_ERROR') {
+      throw new Error(getErrorMessage(payload, 'The workflow failed before saving the purchase order.'));
+    }
+
+    return payload;
   };
 
   const handleProcessFlow = async () => {
-    if (!file) return;
+    if (files.length === 0) return;
 
     setStatus('processing');
     setErrorMessage('');
     setSavedData(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
+    const batchResults = createUploadResults(files);
+    setResults(batchResults);
 
-    try {
-      const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
-        method: 'POST',
-        body: formData,
-      });
+    for (let index = 0; index < files.length; index += 1) {
+      batchResults[index] = {
+        ...batchResults[index],
+        status: 'processing',
+      };
+      setResults([...batchResults]);
 
-      const responseData = await readResponsePayload(response);
+      try {
+        const payload = await processSingleFile(files[index]);
 
-      const payload = getPayload(responseData);
+        batchResults[index] = {
+          ...batchResults[index],
+          status: 'success',
+          payload,
+        };
+      } catch (error) {
+        console.error('Error uploading PDF:', error);
 
-      if (!response.ok) {
-        throw new Error(getErrorMessage(payload, 'Error processing the PDF in n8n.'));
+        batchResults[index] = {
+          ...batchResults[index],
+          status: 'error',
+          error: error.message || 'There was an error processing the PDF. Please try again.',
+        };
       }
 
-      if (payload?.success === false || payload?.status === 'FLOW_ERROR') {
-        setSavedData(payload);
-        setErrorMessage(getErrorMessage(payload, 'The workflow failed before saving the purchase order.'));
-        setStatus('error');
-        return;
-      }
-
-      setSavedData(payload);
-      setStatus('success');
-    } catch (error) {
-      console.error('Error uploading PDF:', error);
-      setErrorMessage(error.message || 'There was an error processing the PDF. Please try again.');
-      setStatus('error');
+      setResults([...batchResults]);
     }
+
+    const successfulResults = batchResults.filter((result) => result.status === 'success');
+
+    if (successfulResults.length === 0) {
+      setErrorMessage('No PDF was processed successfully.');
+    }
+
+    setSavedData(
+      files.length === 1
+        ? successfulResults[0]?.payload || batchResults[0]
+        : { isBatch: true, results: batchResults }
+    );
+    setStatus('complete');
   };
 
   const handleFinish = async () => {
-    await onUploadSuccess(savedData);
+    await onUploadSuccess?.(savedData);
     onClose();
   };
+
+  const successfulCount = results.filter((result) => result.status === 'success').length;
+  const failedCount = results.filter((result) => result.status === 'error').length;
+  const processedCount = successfulCount + failedCount;
+  const hasSelectedFiles = files.length > 0;
+  const isSingleSuccessfulUpload = files.length === 1 && successfulCount === 1;
 
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <button className="modal-close-btn" onClick={onClose}>&times;</button>
+        <button
+          className="modal-close-btn"
+          disabled={status === 'processing'}
+          onClick={onClose}
+        >
+          &times;
+        </button>
 
         {status === 'idle' && (
           <div className="modal-step">
-            <h3>Upload Vendor PDF</h3>
-            <p>Select the procurement or vendor document to process and compare.</p>
+            <h3>Upload Vendor PDFs</h3>
+            <p>Select one or more procurement or vendor documents to process and compare.</p>
 
             <div className="file-dropzone">
               <input
                 type="file"
                 accept=".pdf"
+                multiple
                 id="pdf-upload"
                 onChange={handleFileChange}
               />
               <label htmlFor="pdf-upload">
-                {file ? `File selected: ${file.name}` : 'Drag and drop your PDF here, or click to browse'}
+                {hasSelectedFiles
+                  ? `${files.length} PDF${files.length === 1 ? '' : 's'} selected`
+                  : 'Drag and drop your PDFs here, or click to browse'}
               </label>
             </div>
+
+            {hasSelectedFiles && (
+              <div className="selected-file-list" aria-label="Selected PDFs">
+                {files.map((selectedFile, index) => (
+                  <div className="selected-file-item" key={`${index}-${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}`}>
+                    {selectedFile.name}
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="modal-actions">
               <button className="btn-secondary" onClick={onClose}>Cancel</button>
               <button
                 className="btn-primary"
-                disabled={!file}
+                disabled={!hasSelectedFiles}
                 onClick={handleProcessFlow}
               >
-                Process Document
+                Process {files.length > 1 ? 'Documents' : 'Document'}
               </button>
             </div>
           </div>
@@ -128,36 +220,58 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
         {status === 'processing' && (
           <div className="modal-step text-center">
             <div className="spinner"></div>
-            <h3>Processing PDF...</h3>
-            <p>Saving the PDF and purchase order data.</p>
-          </div>
-        )}
+            <h3>Processing PDFs...</h3>
+            <p>
+              {processedCount + 1 <= files.length
+                ? `Processing ${processedCount + 1} of ${files.length}.`
+                : 'Finishing the batch.'}
+            </p>
 
-        {status === 'success' && (
-          <div className="modal-step text-center">
-            <div className="success-icon">OK</div>
-            <h3>Purchase Order Saved</h3>
-            <p>The PDF and purchase order data were saved successfully.</p>
-
-            <div className="modal-actions centered">
-              <button className="btn-primary" onClick={handleFinish}>
-                View in Comparison Table
-              </button>
+            <div className="batch-results" aria-live="polite">
+              {results.map((result) => (
+                <div className={`batch-result-row batch-result-row--${result.status}`} key={result.id}>
+                  <span className="batch-result-file">{result.fileName}</span>
+                  <span className="batch-result-status">{getResultLabel(result)}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {status === 'error' && (
+        {status === 'complete' && (
           <div className="modal-step text-center">
-            <div className="error-icon">!</div>
-            <h3>Error Processing PDF</h3>
-            <p>{errorMessage || 'An error occurred while processing the PDF. Please try again.'}</p>
+            <div className={failedCount > 0 ? 'warning-icon' : 'success-icon'}>
+              {failedCount > 0 ? '!' : 'OK'}
+            </div>
+            <h3>{files.length > 1 ? 'Batch Complete' : successfulCount ? 'Purchase Order Saved' : 'PDF Not Saved'}</h3>
+            <p>
+              {successfulCount} successful, {failedCount} failed.
+              {errorMessage ? ` ${errorMessage}` : ''}
+            </p>
+
+            <div className="batch-results batch-results--complete">
+              {results.map((result) => (
+                <div className={`batch-result-row batch-result-row--${result.status}`} key={result.id}>
+                  <div>
+                    <span className="batch-result-file">{result.fileName}</span>
+                    {getResultMessage(result) && (
+                      <span className="batch-result-message">{getResultMessage(result)}</span>
+                    )}
+                  </div>
+                  <span className="batch-result-status">{getResultLabel(result)}</span>
+                </div>
+              ))}
+            </div>
 
             <div className="modal-actions centered">
-              <button className="btn-secondary" onClick={onClose}>Close</button>
-              <button className="btn-primary" onClick={handleProcessFlow}>
-                Try Again
-              </button>
+              {successfulCount === 0 && (
+                <button className="btn-secondary" onClick={onClose}>Close</button>
+              )}
+              {successfulCount > 0 && (
+                <button className="btn-primary" onClick={handleFinish}>
+                  {isSingleSuccessfulUpload ? 'Open PO Detail' : 'Refresh Table'}
+                </button>
+              )}
             </div>
           </div>
         )}
