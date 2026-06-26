@@ -287,6 +287,97 @@ const hasSameLineRefs = (sourceRefs, matchedRefs) => (
   sourceRefs.length > 0 && sourceRefs.every((lineRef) => matchedRefs.includes(normalizeLineRef(lineRef)))
 );
 
+const parseComparableNumber = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'string' && value.includes(',')) {
+    return null;
+  }
+
+  const amount = Number(String(value).replace(/[^0-9.-]/g, ''));
+
+  return Number.isFinite(amount) ? amount : null;
+};
+
+const numbersMatch = (left, right, tolerance = 0.0001) => {
+  const leftNumber = parseComparableNumber(left);
+  const rightNumber = parseComparableNumber(right);
+
+  return leftNumber !== null && rightNumber !== null && Math.abs(leftNumber - rightNumber) <= tolerance;
+};
+
+const numbersDiffer = (left, right, tolerance = 0.01) => {
+  const leftNumber = parseComparableNumber(left);
+  const rightNumber = parseComparableNumber(right);
+
+  return leftNumber !== null && rightNumber !== null && Math.abs(leftNumber - rightNumber) > tolerance;
+};
+
+const getSuggestedPdfRefs = (line) => {
+  const sourceRefs = (line.sourcePdfLineNumbers || []).map(normalizeLineRef).filter(Boolean);
+
+  return sourceRefs.length > 0 ? sourceRefs : splitLineRefs(line.pdfLineNumber);
+};
+
+const getSuggestedQbRefs = (line) => {
+  const sourceRefs = (line.sourceQbLineNumbers || []).map(normalizeLineRef).filter(Boolean);
+
+  return sourceRefs.length > 0 ? sourceRefs : splitLineRefs(line.poLineNumber);
+};
+
+const suggestedReasonConfirmsDescriptionMatch = (reason) => (
+  /\b(?:match(?:es|ed)?|coincid(?:e|en|encia|encias))\b/i.test(reason) &&
+  /\b(?:physical|product(?:\s+details)?|description|descripcion|descripci[oó]n|details|specifications?|especificaci(?:o|ó)n(?:es)?|size|hand(?:ing)?|mano|cantidad|qty|casing|profile)\b/i.test(reason)
+);
+
+const suggestedReasonConfirmsPriceDifference = (reason) => (
+  /\b(?:unit\s+price|price|rate|cost|precio|tarifa)\b/i.test(reason) &&
+  /\b(?:diff(?:erence|erent)?|differ|mismatch|review|diferencia|difiere|difieren|distinto|distinta)\b/i.test(reason)
+);
+
+const hasPriceOnlyAiDifference = (line, aiDifferences = []) => {
+  const pdfRefs = getSuggestedPdfRefs(line);
+  const qbRefs = getSuggestedQbRefs(line);
+
+  if (pdfRefs.length !== 1 || qbRefs.length !== 1) {
+    return false;
+  }
+
+  const pairDifferences = aiDifferences.filter((difference) => (
+    normalizeLineRef(difference?.pdf_line) === pdfRefs[0] &&
+    normalizeLineRef(difference?.qb_line) === qbRefs[0]
+  ));
+
+  return (
+    pairDifferences.length > 0 &&
+    pairDifferences.some((difference) => String(difference?.type || '').toUpperCase() === 'PRICE') &&
+    pairDifferences.every((difference) => String(difference?.type || '').toUpperCase() === 'PRICE')
+  );
+};
+
+const isOneToOnePriceOnlySuggestedLine = (line, aiDifferences = []) => {
+  const reason = String(line.sourceMessage || '');
+  const reasonLooksPriceOnly = (
+    suggestedReasonConfirmsDescriptionMatch(reason) &&
+    suggestedReasonConfirmsPriceDifference(reason)
+  );
+
+  return (
+    line.status === 'suggested' &&
+    line.financialsMatch !== true &&
+    getSuggestedPdfRefs(line).length === 1 &&
+    getSuggestedQbRefs(line).length === 1 &&
+    numbersMatch(line.confQty, line.poQty) &&
+    (
+      numbersDiffer(line.confUnitCost, line.poUnitCost) ||
+      numbersDiffer(line.confTotal, line.poTotal)
+    ) &&
+    (hasPriceOnlyAiDifference(line, aiDifferences) || reasonLooksPriceOnly)
+  );
+};
+
 const isActionableWarning = (warning) => warning?.type !== 'QB_GROUPED_LINES';
 
 const isSuggestedAlreadyMatched = (suggestedLine, matchedDetailLines) => {
@@ -302,42 +393,61 @@ const isSuggestedAlreadyMatched = (suggestedLine, matchedDetailLines) => {
 const getLookupLine = (lookup, lineNumber) => {
   if (lineNumber === null || lineNumber === undefined) return null;
 
-  return lookup.get(lineNumber) ?? lookup.get(String(lineNumber)) ?? lookup.get(Number(lineNumber));
+  return lookup.get(lineNumber) ?? lookup.get(String(lineNumber)) ?? lookup.get(Number(lineNumber)) ?? lookup.get(normalizeLineRef(lineNumber));
+};
+
+const setLookupLine = (lookup, lineNumber, line) => {
+  if (lineNumber === null || lineNumber === undefined || lineNumber === '') return;
+
+  lookup.set(lineNumber, line);
+  lookup.set(String(lineNumber), line);
+  lookup.set(normalizeLineRef(lineNumber), line);
+
+  const numericLineNumber = Number(lineNumber);
+  if (Number.isFinite(numericLineNumber)) {
+    lookup.set(numericLineNumber, line);
+  }
 };
 
 const normalizeSuggestedPdfLine = (line, lineLookup) => {
-  if (line && typeof line === 'object') {
-    const lookupLine = getLookupLine(lineLookup.pdf, line.line);
+  const isObjectLine = line && typeof line === 'object';
+  const sourceLine = isObjectLine ? line : {};
+  const lineNumber = isObjectLine ? sourceLine.pdf_line ?? sourceLine.pdf_line_num ?? sourceLine.line : line;
+  const lookupLine = getLookupLine(lineLookup.pdf, lineNumber);
 
+  if (isObjectLine || lookupLine) {
     return {
       ...lookupLine,
-      pdf_line: lookupLine?.pdf_line ?? line.line ?? null,
-      pdf_item_id: lookupLine?.pdf_item_id ?? line.item_id ?? null,
-      pdf_description: lookupLine?.pdf_description ?? line.description ?? null,
-      pdf_qty: lookupLine?.pdf_qty ?? line.qty ?? null,
-      pdf_unit_price: lookupLine?.pdf_unit_price ?? line.unit_price ?? null,
-      pdf_extd_price: lookupLine?.pdf_extd_price ?? line.extd_price ?? null,
+      pdf_line: lookupLine?.pdf_line ?? lookupLine?.pdf_line_num ?? lookupLine?.line ?? lineNumber ?? null,
+      pdf_item_id: lookupLine?.pdf_item_id ?? lookupLine?.item_id ?? sourceLine.item_id ?? null,
+      pdf_description: lookupLine?.pdf_description ?? lookupLine?.description ?? sourceLine.pdf_description ?? sourceLine.description ?? null,
+      pdf_qty: lookupLine?.pdf_qty ?? lookupLine?.qty ?? lookupLine?.ordered ?? sourceLine.pdf_qty ?? sourceLine.qty_used ?? sourceLine.qty ?? null,
+      pdf_unit_price: lookupLine?.pdf_unit_price ?? lookupLine?.unit_price ?? sourceLine.pdf_unit_price ?? sourceLine.unit_price ?? null,
+      pdf_extd_price: lookupLine?.pdf_extd_price ?? lookupLine?.extd_price ?? sourceLine.pdf_extd_price ?? sourceLine.extd_price ?? null,
     };
   }
 
-  return getLookupLine(lineLookup.pdf, line);
+  return null;
 };
 
 const normalizeSuggestedQbLine = (line, lineLookup) => {
-  if (line && typeof line === 'object') {
-    const lookupLine = getLookupLine(lineLookup.qb, line.qb_line_num ?? line.line);
+  const isObjectLine = line && typeof line === 'object';
+  const sourceLine = isObjectLine ? line : {};
+  const lineNumber = isObjectLine ? sourceLine.qb_line ?? sourceLine.qb_line_num ?? sourceLine.line : line;
+  const lookupLine = getLookupLine(lineLookup.qb, lineNumber);
 
+  if (isObjectLine || lookupLine) {
     return {
       ...lookupLine,
-      qb_line: lookupLine?.qb_line ?? line.qb_line_num ?? line.line ?? null,
-      qb_description: lookupLine?.qb_description ?? line.qb_description ?? line.description ?? null,
-      qb_qty: lookupLine?.qb_qty ?? line.qb_qty ?? line.qty ?? null,
-      qb_rate: lookupLine?.qb_rate ?? line.qb_rate ?? line.rate ?? null,
-      qb_amount: lookupLine?.qb_amount ?? line.qb_amount ?? line.amount ?? null,
+      qb_line: lookupLine?.qb_line ?? lookupLine?.qb_line_num ?? lookupLine?.line ?? lineNumber ?? null,
+      qb_description: lookupLine?.qb_description ?? lookupLine?.description ?? sourceLine.qb_description ?? sourceLine.description ?? null,
+      qb_qty: lookupLine?.qb_qty ?? lookupLine?.qty ?? sourceLine.qb_qty ?? sourceLine.qty_used ?? sourceLine.qty ?? null,
+      qb_rate: lookupLine?.qb_rate ?? lookupLine?.rate ?? sourceLine.qb_rate ?? sourceLine.unit_price ?? sourceLine.rate ?? null,
+      qb_amount: lookupLine?.qb_amount ?? lookupLine?.amount ?? sourceLine.qb_amount ?? sourceLine.amount ?? null,
     };
   }
 
-  return getLookupLine(lineLookup.qb, line);
+  return null;
 };
 
 const normalizeDetailLine = (sourceLine, index, po) => {
@@ -371,20 +481,26 @@ const normalizeDetailLine = (sourceLine, index, po) => {
 };
 
 const buildSuggestedLine = (match, index, po, lineLookup) => {
-  const sourcePdfLineNumbers = (match.pdf_lines || [])
+  const pdfSources = Array.isArray(match.pdf_allocations) && match.pdf_allocations.length > 0
+    ? match.pdf_allocations
+    : (match.pdf_lines || []);
+  const qbSources = Array.isArray(match.qb_allocations) && match.qb_allocations.length > 0
+    ? match.qb_allocations
+    : (match.qb_lines || []);
+  const sourcePdfLineNumbers = pdfSources
     .map(getSuggestedPdfLineRef)
     .filter((lineNumber) => lineNumber !== null && lineNumber !== undefined);
-  const sourceQbLineNumbers = (match.qb_lines || [])
+  const sourceQbLineNumbers = qbSources
     .map(getSuggestedQbLineRef)
     .filter((lineNumber) => lineNumber !== null && lineNumber !== undefined);
   const pdfLines = uniqueByLineRef(
-    (match.pdf_lines || [])
+    pdfSources
       .map((line) => normalizeSuggestedPdfLine(line, lineLookup))
       .filter(Boolean),
     'pdf_line'
   );
   const qbLines = uniqueByLineRef(
-    (match.qb_lines || [])
+    qbSources
       .map((line) => normalizeSuggestedQbLine(line, lineLookup))
       .filter(Boolean),
     'qb_line'
@@ -475,12 +591,20 @@ const buildDetailFromOrder = (order, poId) => {
 
   const matchedLines = reconciliation.matched_lines || [];
   const discrepancyLines = reconciliation.discrepancias || [];
-  const lineLookup = [...matchedLines, ...discrepancyLines].reduce((lookup, line) => {
-    if (line.pdf_line != null) lookup.pdf.set(line.pdf_line, line);
-    if (line.qb_line != null) lookup.qb.set(line.qb_line, line);
+  const pdfSourceLines = Array.isArray(reconciliation.pdfData?.line_items) ? reconciliation.pdfData.line_items : [];
+  const qbSourceLines = Array.isArray(reconciliation.qbData?.qb_line_items) ? reconciliation.qbData.qb_line_items : [];
+  const lineLookup = { pdf: new Map(), qb: new Map() };
 
-    return lookup;
-  }, { pdf: new Map(), qb: new Map() });
+  pdfSourceLines.forEach((line) => {
+    setLookupLine(lineLookup.pdf, line.pdf_line ?? line.pdf_line_num ?? line.line, line);
+  });
+  qbSourceLines.forEach((line) => {
+    setLookupLine(lineLookup.qb, line.qb_line ?? line.qb_line_num ?? line.line, line);
+  });
+  [...matchedLines, ...discrepancyLines].forEach((line) => {
+    setLookupLine(lineLookup.pdf, line.pdf_line, line);
+    setLookupLine(lineLookup.qb, line.qb_line, line);
+  });
   const suggestedLines = po.aiSuggestedMatches.map((match, index) => (
     buildSuggestedLine(match, index, po, lineLookup)
   ));
@@ -489,18 +613,22 @@ const buildDetailFromOrder = (order, poId) => {
     line.status === 'matched' && !isSuggestedAlreadyMatched(line, normalizedMatchedLines)
   ));
   const reviewSuggestedLines = suggestedLines.filter((line) => line.status !== 'matched');
-  const aiMatchedPdfLineNumbers = new Set(aiMatchedLines.flatMap((line) => (
-    line.sourcePdfLineNumbers.map(String)
+  const discrepancyCoveredSuggestedLines = [
+    ...aiMatchedLines,
+    ...reviewSuggestedLines.filter((line) => isOneToOnePriceOnlySuggestedLine(line, po.aiDifferences)),
+  ];
+  const coveredPdfLineNumbers = new Set(discrepancyCoveredSuggestedLines.flatMap((line) => (
+    getSuggestedPdfRefs(line)
   )));
-  const aiMatchedQbLineNumbers = new Set(aiMatchedLines.flatMap((line) => (
-    line.sourceQbLineNumbers.map(String)
+  const coveredQbLineNumbers = new Set(discrepancyCoveredSuggestedLines.flatMap((line) => (
+    getSuggestedQbRefs(line)
   )));
   const unresolvedDiscrepancyLines = discrepancyLines.filter((line) => {
-    if (line.type === 'LINE_NOT_FOUND_IN_QB' && aiMatchedPdfLineNumbers.has(String(line.pdf_line))) {
+    if (line.type === 'LINE_NOT_FOUND_IN_QB' && coveredPdfLineNumbers.has(normalizeLineRef(line.pdf_line))) {
       return false;
     }
 
-    if (line.type === 'LINE_NOT_FOUND_IN_PDF' && aiMatchedQbLineNumbers.has(String(line.qb_line))) {
+    if (line.type === 'LINE_NOT_FOUND_IN_PDF' && coveredQbLineNumbers.has(normalizeLineRef(line.qb_line))) {
       return false;
     }
 
@@ -571,7 +699,11 @@ const buildDetailFromOrder = (order, poId) => {
   const totalResults = lines.filter((line) => !line.isSection).length;
 
   return {
-    po,
+    po: {
+      ...po,
+      discrepanciesCount: unresolvedDiscrepancyLines.length,
+      matchedCount: displayMatchedLines.length,
+    },
     lines,
     totalResults,
   };
