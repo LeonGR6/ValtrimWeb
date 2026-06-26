@@ -11,6 +11,7 @@
         "signIn": "el inicio de sesión"
       },
       "couldNotCreateAccount": "No se pudo crear la cuenta",
+      "sessionFailed": "No se pudo restaurar la sesion de Supabase",
       "couldNotSignIn": "No se pudo iniciar sesión",
       "registrationFailed": "Falló el registro",
       "loginFailed": "Falló el inicio de sesión"

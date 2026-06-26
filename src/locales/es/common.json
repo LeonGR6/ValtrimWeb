@@ -16,6 +16,8 @@
     "createLoading": "Creando...",
     "update": "Actualizar",
     "updating": "Actualizando...",
-    "loading": "Cargando..."
+    "loading": "Cargando...",
+    "loadingTitle": "Preparando tu workspace",
+    "loadingSubtitle": "Estamos restaurando tu sesion segura de Valtrim."
   }
 }

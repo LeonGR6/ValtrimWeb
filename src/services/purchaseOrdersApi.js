@@ -1,5 +1,5 @@
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { assertSupabaseConfig, SUPABASE_ANON_KEY, SUPABASE_URL } from './supabaseClient.js';
+
 const QB_LINE_UPDATE_WEBHOOK = '/webhook/update-qb-po-line';
 export const VENDOR_PDF_UPLOAD_WEBHOOK = '/webhook/upload-pdf-vendor';
 
@@ -127,6 +127,50 @@ const buildAlert = (data, row) => {
   return 'New';
 };
 
+const getSupabaseSessionToken = async () => {
+  const client = assertSupabaseConfig();
+  const { data } = await client.auth.getSession();
+
+  return data.session?.access_token || null;
+};
+
+const getSupabaseHeaders = async ({ hasBody = false, useSession = true } = {}) => {
+  const sessionToken = useSession ? await getSupabaseSessionToken() : null;
+  const bearerToken = sessionToken || SUPABASE_ANON_KEY;
+
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${bearerToken}`,
+    Accept: 'application/json',
+    ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+  };
+};
+
+const fetchSupabaseStorage = async (url, options = {}, { hasBody = false } = {}) => {
+  const headers = {
+    ...(await getSupabaseHeaders({ hasBody })),
+    ...(options.headers || {}),
+  };
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  const hasSessionToken = Boolean(await getSupabaseSessionToken());
+
+  if (response.ok || !hasSessionToken) {
+    return response;
+  }
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...(await getSupabaseHeaders({ hasBody, useSession: false })),
+      ...(options.headers || {}),
+    },
+  });
+};
+
 export const normalizePurchaseOrderRow = (row) => {
   const latestJson = getJsonObject(row.latest_json || row.comparison_json);
   const workflowStatus = row.workflow_status ?? latestJson.workflow_status ?? 'PENDING';
@@ -181,12 +225,10 @@ const requestSupabase = async (path, options = {}) => {
   }
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    cache: 'no-store',
     ...options,
     headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      Accept: 'application/json',
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(await getSupabaseHeaders({ hasBody: Boolean(options.body) })),
       ...(options.headers || {}),
     },
   });
@@ -249,6 +291,13 @@ const readWebhookResponse = async (response, fallbackError) => {
   return responseData;
 };
 
+const isNonBlockingPersistenceWarning = (payload) => (
+  payload?.success === false &&
+  payload?.status !== 'FLOW_ERROR' &&
+  payload?.persistence?.database?.ok === true &&
+  payload?.data
+);
+
 export const updateQuickBooksPurchaseOrderLine = async ({
   poNumber,
   qbLineNumber,
@@ -305,6 +354,14 @@ export const reconcilePurchaseOrderWithCurrentPdf = async (poNumber) => {
   );
 
   if (payload?.success === false || payload?.status === 'FLOW_ERROR') {
+    if (isNonBlockingPersistenceWarning(payload)) {
+      return {
+        ...payload,
+        success: true,
+        persistence_warning: payload.persistence?.sheets?.error || 'Reconciliation saved, but Google Sheets was not updated.',
+      };
+    }
+
     throw new Error(
       payload?.user_message ||
       payload?.error_message ||
@@ -324,15 +381,10 @@ const deleteStorageObjects = async (bucket, paths) => {
     return null;
   }
 
-  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${cleanBucket}`, {
+  const response = await fetchSupabaseStorage(`${SUPABASE_URL}/storage/v1/object/${cleanBucket}`, {
     method: 'DELETE',
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify({ prefixes: cleanPaths }),
-  });
+  }, { hasBody: true });
 
   if (!response.ok) {
     const details = await response.text();
@@ -408,15 +460,10 @@ const buildSignedUrl = (signedURL) => {
 const signStorageObject = async (bucket, storagePath) => {
   const cleanPath = normalizeStoragePath(bucket, storagePath);
   const encodedPath = encodeStoragePath(cleanPath);
-  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${encodedPath}`, {
+  const response = await fetchSupabaseStorage(`${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${encodedPath}`, {
     method: 'POST',
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify({ expiresIn: 3600 }),
-  });
+  }, { hasBody: true });
 
   if (!response.ok) {
     const details = await response.text();
@@ -434,13 +481,8 @@ const signStorageObject = async (bucket, storagePath) => {
 };
 
 const listCurrentPdfFromStorage = async (bucket, poNumber) => {
-  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${bucket}`, {
+  const response = await fetchSupabaseStorage(`${SUPABASE_URL}/storage/v1/object/list/${bucket}`, {
     method: 'POST',
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify({
       limit: 100,
       offset: 0,
@@ -450,7 +492,7 @@ const listCurrentPdfFromStorage = async (bucket, poNumber) => {
         order: 'desc',
       },
     }),
-  });
+  }, { hasBody: true });
 
   if (!response.ok) {
     const details = await response.text();
@@ -491,9 +533,14 @@ export const fetchCurrentPurchaseOrderPdf = async (poNumber) => {
       storagePath = await listCurrentPdfFromStorage(file.bucket, poNumber);
       signedUrl = await signStorageObject(file.bucket, storagePath);
     } catch (listError) {
+      const storageError = [
+        signError?.message ? `stored path: ${signError.message}` : '',
+        listError?.message ? `fallback lookup: ${listError.message}` : '',
+      ].filter(Boolean).join(' | ');
+
       throw new Error(
         `Could not open the current PDF. Bucket: ${file.bucket}. Path: ${normalizeStoragePath(file.bucket, file.storage_path)}. ` +
-        `Storage error: ${signError?.message || listError.message}`,
+        `Storage error: ${storageError || 'Unknown storage error'}`,
         { cause: listError }
       );
     }

@@ -1,5 +1,5 @@
 // WATERMARK_AUTHOR: Hecho por Gerardo Esparza
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -41,11 +41,22 @@ export default function Register() {
         }
 
         try {
-            await register({
+            const response = await register({
                 fullName: formData.fullName,
                 email: formData.email,
                 password: formData.password,
             });
+
+            if (response.needsEmailConfirmation) {
+                navigate('/login', {
+                    replace: true,
+                    state: {
+                        notice: t('auth.register.checkEmail'),
+                    },
+                });
+                return;
+            }
+
             navigate('/');
         } catch (err) {
             setFormError(err.message);

@@ -207,6 +207,137 @@
     z-index: 1;
 }
 
+.loading-screen {
+    position: relative;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    padding: var(--space-6);
+    background:
+        radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 38%),
+        var(--bg-app);
+}
+
+.loading-screen--compact {
+    min-height: 58vh;
+    border-radius: var(--radius-lg);
+    background: transparent;
+}
+
+.loading-screen__glow {
+    position: absolute;
+    width: min(34rem, 80vw);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(90px);
+    opacity: 0.42;
+}
+
+.loading-screen__glow--top {
+    top: -14rem;
+    right: -12rem;
+    background: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.loading-screen__glow--bottom {
+    bottom: -16rem;
+    left: -12rem;
+    background: color-mix(in srgb, var(--accent-strong) 28%, transparent);
+}
+
+.loading-screen__card {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 24rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-5);
+    padding: var(--space-7);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--bg-panel-strong) 92%, white 4%), color-mix(in srgb, var(--bg-panel) 92%, transparent)),
+        var(--bg-panel);
+    box-shadow: var(--shadow-panel);
+    text-align: center;
+}
+
+.loading-screen--compact .loading-screen__card {
+    width: min(100%, 20rem);
+    padding: var(--space-6);
+}
+
+.loading-screen__brand {
+    width: 4.25rem;
+    height: 4.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    animation: loading-brand-pulse 1.8s var(--easing-standard) infinite;
+}
+
+.loading-screen__copy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.loading-screen__copy h1 {
+    font-size: var(--type-size-title-lg);
+    line-height: var(--type-line-title);
+}
+
+.loading-screen__copy p:not(.eyebrow) {
+    max-width: 18rem;
+    color: var(--text-2-muted);
+}
+
+.loading-screen__meter {
+    position: relative;
+    width: min(100%, 12rem);
+    height: 0.28rem;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--text-1) 9%, transparent);
+}
+
+.loading-screen__meter span {
+    position: absolute;
+    inset-block: 0;
+    left: -45%;
+    width: 45%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent, var(--accent-strong), transparent);
+    animation: loading-meter 1.18s var(--easing-standard) infinite;
+}
+
+@keyframes loading-brand-pulse {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.82;
+    }
+
+    50% {
+        transform: scale(1.045);
+        opacity: 1;
+    }
+}
+
+@keyframes loading-meter {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(320%);
+    }
+}
+
 .brand-panel {
     gap: var(--space-3);
 }

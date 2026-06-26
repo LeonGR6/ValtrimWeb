@@ -12,6 +12,7 @@
       },
       "couldNotCreateAccount": "Could not create the account",
       "couldNotSignIn": "Could not sign in",
+      "sessionFailed": "Could not restore the Supabase session",
       "registrationFailed": "Registration failed",
       "loginFailed": "Login failed"
     }

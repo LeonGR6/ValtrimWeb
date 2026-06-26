@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 // App bootstrap: mounts React, router, and global style foundations.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

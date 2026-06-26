@@ -1,8 +1,7 @@
-<!-- WATERMARK_AUTHOR: Hecho por Gerardo Esparza -->
 # Valtrim Web
 
 Valtrim Web es la aplicacion frontend del proyecto Valtrim, construida con React + Vite.
-Su objetivo es ofrecer la interfaz de usuario para autenticacion y operacion diaria de la plataforma,
+Su objetivo es ofrecer la interfaz de usuario para autenticacion con Supabase y operacion diaria de la plataforma,
 con soporte de internacionalizacion en espanol e ingles.
 
 ## Requisitos
@@ -20,4 +19,5 @@ npm run lint
 
 ## Nota
 
-Este proyecto consume la API de Valtrim para autenticacion.
+Este proyecto usa Supabase Auth para iniciar sesion, registrar usuarios y restaurar sesiones.
+Configura `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en `.env`.

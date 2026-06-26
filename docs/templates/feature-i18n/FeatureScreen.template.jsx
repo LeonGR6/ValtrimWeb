@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import { useTranslation } from 'react-i18next';
 
 export default function FeatureScreen() {

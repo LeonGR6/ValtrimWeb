@@ -62,19 +62,76 @@ const getResultMessage = (result) => {
   return '';
 };
 
+const isPdfFile = (file) => (
+  file?.type === 'application/pdf' ||
+  String(file?.name || '').toLowerCase().endsWith('.pdf')
+);
+
 export default function UploadVendorModal({ onClose, onUploadSuccess }) {
   const [status, setStatus] = useState('idle');
   const [files, setFiles] = useState([]);
   const [savedData, setSavedData] = useState(null);
   const [results, setResults] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+
+  const setSelectedFiles = (nextFiles) => {
+    const selectedFiles = Array.from(nextFiles || []);
+    const pdfFiles = selectedFiles.filter(isPdfFile);
+
+    setFiles(pdfFiles);
+    setResults(createUploadResults(pdfFiles));
+    setSavedData(null);
+    setErrorMessage(
+      selectedFiles.length > pdfFiles.length
+        ? 'Only PDF files can be uploaded.'
+        : ''
+    );
+  };
 
   const handleFileChange = (event) => {
-    const selectedFiles = Array.from(event.target.files || []);
-    setFiles(selectedFiles);
-    setResults(createUploadResults(selectedFiles));
-    setSavedData(null);
-    setErrorMessage('');
+    setSelectedFiles(event.target.files);
+    event.target.value = '';
+  };
+
+  const handleDragEnter = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (status === 'idle') {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'copy';
+
+    if (status === 'idle') {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nextTarget = event.relatedTarget;
+
+    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+
+    if (status !== 'idle') return;
+
+    setSelectedFiles(event.dataTransfer.files);
   };
 
   const processSingleFile = async (file) => {
@@ -179,7 +236,19 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
             <h3>Upload Vendor PDFs</h3>
             <p>Select one or more procurement or vendor documents to process and compare.</p>
 
-            <div className="file-dropzone">
+            {errorMessage && (
+              <div className="upload-error-message" role="alert">
+                {errorMessage}
+              </div>
+            )}
+
+            <div
+              className={`file-dropzone${isDragging ? ' is-dragging' : ''}`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
               <input
                 type="file"
                 accept=".pdf"

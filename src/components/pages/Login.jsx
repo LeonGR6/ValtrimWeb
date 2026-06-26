@@ -1,24 +1,29 @@
 // WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import BrandLogo from '../ui/BrandLogo';
+import LoadingScreen from '../ui/LoadingScreen.jsx';
 import PasswordField from '../ui/PasswordField';
 import '../styles/auth.css';
 
 export default function Login() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { t, i18n } = useTranslation();
-    const { login, isLoading, error, clearError } = useAuth();
+    const { login, loginWithGoogle, isLoading, error, clearError } = useAuth();
 
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [formError, setFormError] = useState('');
+    const [notice, setNotice] = useState(location.state?.notice || '');
+    const fromPath = location.state?.from?.pathname || '/dashboard';
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
         setFormError('');
+        setNotice('');
         if (error) clearError();
     };
 
@@ -27,19 +32,31 @@ export default function Login() {
         setFormError('');
         try {
             await login({ email: formData.email, password: formData.password });
-            navigate('/');
+            navigate(fromPath, { replace: true });
         } catch (err) {
-            const code = err?.code || '';
-            if (code === 'invalid_response_format' || code === 'invalid_auth_response') {
-                const apiBase = err?.details?.apiBase || '(same-origin)';
-                setFormError(t('auth.login.invalidApiFormat', { apiBase }));
-            } else {
-                setFormError(err.message);
-            }
+            setFormError(err.message);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        setFormError('');
+        try {
+            await loginWithGoogle();
+        } catch (err) {
+            setFormError(err.message);
         }
     };
 
     const resolvedLang = i18n.resolvedLanguage === 'es' ? 'es' : 'en';
+
+    if (isLoading) {
+        return (
+            <LoadingScreen
+                title={t('auth.login.loadingTitle')}
+                subtitle={t('auth.login.loadingSubtitle')}
+            />
+        );
+    }
 
     return (
         <div className="auth-scene">
@@ -78,6 +95,12 @@ export default function Login() {
                     </p>
                 </div>
 
+                {notice && (
+                    <p className="auth-info-msg" role="status">
+                        {notice}
+                    </p>
+                )}
+
                 {(formError || error) && (
                     <div>
                         <p className="auth-error-msg" role="alert">
@@ -114,7 +137,12 @@ export default function Login() {
 
                     <div className="auth-sep">{t('auth.login.or')}</div>
 
-                    <button type="button" className="auth-btn-sso auth-btn-sso--google">
+                    <button
+                        type="button"
+                        className="auth-btn-sso auth-btn-sso--google"
+                        onClick={handleGoogleLogin}
+                        disabled={isLoading}
+                    >
                         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path
                                 fill="#EA4335"

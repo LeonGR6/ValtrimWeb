@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +10,7 @@ import Button from './components/ui/Button.jsx';
 import BrandLogo from './components/ui/BrandLogo.jsx';
 import Card from './components/ui/Card.jsx';
 import Icon from './components/ui/Icon.jsx';
+import LoadingScreen from './components/ui/LoadingScreen.jsx';
 import ThemeToggle from './components/ui/ThemeToggle.jsx';
 import Login from './components/pages/Login.jsx';
 import Register from './components/pages/Register.jsx';
@@ -119,9 +119,9 @@ function getRouteMeta(pathname, t) {
 
 export default function App() {
   const location = useLocation();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [theme, setTheme] = useState(getInitialTheme);
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const isAdmin = Array.isArray(user?.roles) && user.roles.includes('admin');
   const navItems = useMemo(() => getNavItems(t, isAdmin), [isAdmin, t]);
 
@@ -143,6 +143,15 @@ export default function App() {
     location.pathname === '/register';
 
   if (isAuthPage) {
+    if (isLoading) {
+      return (
+        <LoadingScreen
+          title={t('common.loadingTitle')}
+          subtitle={t('common.loadingSubtitle')}
+        />
+      );
+    }
+
     if (isAuthenticated) {
       return <Navigate to="/dashboard" replace />;
     }
@@ -242,11 +251,6 @@ export default function App() {
               path="/order-comparison"
               element={
                 <ProtectedRoute>
-                  {/* <ModulePlaceholder
-                    eyebrow={t('routes.orderComparison.eyebrow')}
-                    title={t('routes.orderComparison.title')}
-                    description={t('routes.orderComparison.description')}
-                  /> */}
                   <OrderComparisonPage />
                 </ProtectedRoute>
               }

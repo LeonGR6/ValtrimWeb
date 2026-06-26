@@ -173,10 +173,54 @@ const existingQty = toNumber(detail.Qty);
 const existingRate = toNumber(detail.UnitPrice ?? detail.Rate);
 
 if (!valuesMatch(existingQty, request.current_qty)) {
+  if (valuesMatch(existingQty, request.next_qty) && moneyMatch(existingRate, request.next_rate)) {
+    return [{
+      json: {
+        already_updated: true,
+        po_number: request.po_number,
+        qb_line: request.qb_line,
+        previous_qty: existingQty,
+        previous_rate: roundMoney(existingRate),
+        next_qty: request.next_qty,
+        next_rate: request.next_rate,
+        next_amount: roundMoney(existingQty * existingRate),
+        qb_purchase_order_id: po.Id,
+        sync_token: po.SyncToken,
+        update_payload: {
+          ...po,
+          sparse: false,
+          Line: lines,
+        }
+      }
+    }];
+  }
+
   throw new Error(`QuickBooks quantity changed from ${request.current_qty} to ${existingQty}. Refresh before saving.`);
 }
 
 if (!moneyMatch(existingRate, request.current_rate)) {
+  if (valuesMatch(existingQty, request.next_qty) && moneyMatch(existingRate, request.next_rate)) {
+    return [{
+      json: {
+        already_updated: true,
+        po_number: request.po_number,
+        qb_line: request.qb_line,
+        previous_qty: existingQty,
+        previous_rate: roundMoney(existingRate),
+        next_qty: request.next_qty,
+        next_rate: request.next_rate,
+        next_amount: roundMoney(existingQty * existingRate),
+        qb_purchase_order_id: po.Id,
+        sync_token: po.SyncToken,
+        update_payload: {
+          ...po,
+          sparse: false,
+          Line: lines,
+        }
+      }
+    }];
+  }
+
   throw new Error(`QuickBooks rate changed from ${request.current_rate} to ${existingRate}. Refresh before saving.`);
 }
 

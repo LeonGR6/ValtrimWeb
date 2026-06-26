@@ -1,128 +1,202 @@
 // WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { authApi } from '../services/authApi';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import i18n from '../i18n.js';
+import { assertSupabaseConfig } from '../services/supabaseClient.js';
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEYS = {
-    ACCESS_TOKEN: 'auth:access_token',
-    USER: 'auth:user',
-    ACCESS_TOKEN_EXPIRES: 'auth:access_token_expires',
-};
+function normalizeRoles(user) {
+    const rawRoles = user?.app_metadata?.roles ?? user?.app_metadata?.role ?? user?.user_metadata?.roles;
+    const roles = Array.isArray(rawRoles) ? rawRoles : [rawRoles].filter(Boolean);
+
+    return roles.map((role) => String(role).toLowerCase());
+}
+
+function normalizeSupabaseUser(user) {
+    if (!user) return null;
+
+    const fullName =
+        user.user_metadata?.full_name ||
+        user.user_metadata?.fullName ||
+        user.user_metadata?.name ||
+        user.email ||
+        '';
+
+    return {
+        id: user.id,
+        email: user.email,
+        fullName,
+        roles: normalizeRoles(user),
+        raw: user,
+    };
+}
+
+function getAuthErrorMessage(err, fallbackKey) {
+    return err?.message || i18n.t(fallbackKey);
+}
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
-    const [accessToken, setAccessToken] = useState(null);
+    const [session, setSession] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const clearAuth = useCallback(() => {
-        setUser(null);
-        setAccessToken(null);
-        setError(null);
-
-        localStorage.removeItem(STORAGE_KEYS.USER);
-        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN_EXPIRES);
+    const applySession = useCallback((nextSession) => {
+        setSession(nextSession);
+        setUser(normalizeSupabaseUser(nextSession?.user));
     }, []);
 
-    const saveAuthData = useCallback((userData, newAccessToken, expiresAt) => {
-        setUser(userData);
-        setAccessToken(newAccessToken);
-
-        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
-        localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, newAccessToken);
-        localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN_EXPIRES, expiresAt);
-    }, []);
-
-    // Initialize from localStorage on mount
     useEffect(() => {
-        const initAuth = async () => {
-            try {
-                const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
-                const storedAccessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-                const storedExpires = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN_EXPIRES);
+        let isMounted = true;
 
-                if (storedAccessToken && storedUser) {
-                    // Check if token is expired
-                    const expiresAt = new Date(storedExpires);
-                    if (expiresAt > new Date()) {
-                        setAccessToken(storedAccessToken);
-                        setUser(JSON.parse(storedUser));
-                    } else {
-                        // Clear auth
-                        clearAuth();
-                    }
-                }
+        async function initAuth() {
+            try {
+                const client = assertSupabaseConfig();
+                const { data, error: sessionError } = await client.auth.getSession();
+
+                if (sessionError) throw sessionError;
+                if (isMounted) applySession(data.session);
             } catch (err) {
                 console.error('Failed to initialize auth:', err);
-                clearAuth();
+                if (isMounted) {
+                    applySession(null);
+                    setError(getAuthErrorMessage(err, 'api.auth.sessionFailed'));
+                }
             } finally {
-                setIsLoading(false);
+                if (isMounted) setIsLoading(false);
             }
-        };
+        }
 
         initAuth();
-    }, [clearAuth]);
 
-    const register = async (registerData) => {
+        let subscription;
+        try {
+            const client = assertSupabaseConfig();
+            const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
+                applySession(nextSession);
+                setIsLoading(false);
+            });
+            subscription = data.subscription;
+        } catch {
+            subscription = null;
+        }
+
+        return () => {
+            isMounted = false;
+            subscription?.unsubscribe();
+        };
+    }, [applySession]);
+
+    const register = useCallback(async ({ email, fullName, password }) => {
         setError(null);
         setIsLoading(true);
+
         try {
-            const response = await authApi.register(registerData);
-            saveAuthData(
-                response.user,
-                response.accessToken,
-                response.accessTokenExpiresAt
-            );
-            return response;
+            const client = assertSupabaseConfig();
+            const { data, error: signUpError } = await client.auth.signUp({
+                email,
+                password,
+                options: {
+                    emailRedirectTo: `${window.location.origin}/dashboard`,
+                    data: {
+                        full_name: fullName,
+                        fullName,
+                    },
+                },
+            });
+
+            if (signUpError) throw signUpError;
+            applySession(data.session);
+
+            return {
+                user: normalizeSupabaseUser(data.user),
+                session: data.session,
+                needsEmailConfirmation: Boolean(data.user && !data.session),
+            };
         } catch (err) {
-            const errorMsg = err.message || i18n.t('api.auth.registrationFailed');
+            const errorMsg = getAuthErrorMessage(err, 'api.auth.registrationFailed');
             setError(errorMsg);
             throw err;
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [applySession]);
 
-    const login = async (loginData) => {
+    const login = useCallback(async ({ email, password }) => {
         setError(null);
         setIsLoading(true);
+
         try {
-            const response = await authApi.login(loginData);
-            saveAuthData(
-                response.user,
-                response.accessToken,
-                response.accessTokenExpiresAt
-            );
-            return response;
+            const client = assertSupabaseConfig();
+            const { data, error: loginError } = await client.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (loginError) throw loginError;
+            applySession(data.session);
+
+            return {
+                user: normalizeSupabaseUser(data.user),
+                session: data.session,
+            };
         } catch (err) {
-            const errorMsg = err.message || i18n.t('api.auth.loginFailed');
+            const errorMsg = getAuthErrorMessage(err, 'api.auth.loginFailed');
             setError(errorMsg);
             throw err;
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [applySession]);
 
-    const logout = async () => {
+    const loginWithGoogle = useCallback(async () => {
         setError(null);
-        clearAuth();
-    };
 
-    const value = {
+        try {
+            const client = assertSupabaseConfig();
+            const { data, error: oauthError } = await client.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/dashboard`,
+                },
+            });
+
+            if (oauthError) throw oauthError;
+            return data;
+        } catch (err) {
+            const errorMsg = getAuthErrorMessage(err, 'api.auth.loginFailed');
+            setError(errorMsg);
+            throw err;
+        }
+    }, []);
+
+    const logout = useCallback(async () => {
+        setError(null);
+        const client = assertSupabaseConfig();
+        const { error: logoutError } = await client.auth.signOut();
+
+        if (logoutError) {
+            setError(logoutError.message);
+            throw logoutError;
+        }
+
+        applySession(null);
+    }, [applySession]);
+
+    const value = useMemo(() => ({
         user,
-        accessToken,
+        session,
+        accessToken: session?.access_token || null,
         isLoading,
         error,
-        isAuthenticated: !!accessToken && !!user,
+        isAuthenticated: Boolean(session?.access_token && user),
         register,
         login,
+        loginWithGoogle,
         logout,
         clearError: () => setError(null),
-    };
+    }), [error, isLoading, login, loginWithGoogle, logout, register, session, user]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

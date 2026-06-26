@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import PODetailHeader from '../components/po-detail/PODetailHeader.jsx';
 import PODetailTable from '../components/po-detail/PODetailTable.jsx';
@@ -103,6 +103,10 @@ const isSingleNumericValue = (value) => {
 
   return Number.isFinite(Number(value));
 };
+
+const isStaleQuickBooksError = (error) => (
+  /QuickBooks (?:quantity|rate) changed .*Refresh before saving/i.test(error?.message || '')
+);
 
 const formatStatus = (status) => {
   return formatWorkflowStatus(status);
@@ -597,17 +601,50 @@ export default function PODetailPage() {
     url: '',
   });
 
+  const refreshPurchaseOrderDetails = useCallback(async () => {
+    const purchaseOrder = await fetchPurchaseOrderByPoNumber(poId);
+
+    if (!purchaseOrder) {
+      throw new Error(`PO ${poId} was not found.`);
+    }
+
+    setOrder(purchaseOrder);
+    setLoadError('');
+
+    return purchaseOrder;
+  }, [poId]);
+
+  const syncEditorWithOrder = useCallback((updatedOrder, sourceLine) => {
+    if (!updatedOrder || !sourceLine?.poLineNumber) return;
+
+    const refreshedDetail = buildDetailFromOrder(updatedOrder, poId);
+    const refreshedLine = refreshedDetail.lines.find((line) => (
+      !line.isSection &&
+      String(line.poLineNumber) === String(sourceLine.poLineNumber)
+    ));
+
+    if (!refreshedLine) return;
+
+    const suggestedRate = refreshedLine.status === 'suggested' && isSingleNumericValue(refreshedLine.confUnitCost)
+      ? refreshedLine.confUnitCost
+      : null;
+
+    setEditingQbLine(refreshedLine);
+    setQbLineDraft({
+      qty: refreshedLine.poQty ?? '',
+      rate: suggestedRate ?? refreshedLine.poUnitCost ?? '',
+    });
+  }, [poId]);
+
   useEffect(() => {
     let ignore = false;
 
-    if (location.state?.order) {
-      return () => {
-        ignore = true;
-      };
-    }
-
     const loadOrder = async () => {
-      setIsLoading(true);
+      if (location.state?.order) {
+        setOrder(location.state.order);
+      }
+
+      setIsLoading(!location.state?.order);
       setLoadError('');
 
       try {
@@ -637,7 +674,7 @@ export default function PODetailPage() {
     return () => {
       ignore = true;
     };
-  }, [location.state, poId]);
+  }, [location.key, location.state, poId]);
 
   const { po, lines, totalResults } = buildDetailFromOrder(order, poId);
 
@@ -774,7 +811,8 @@ export default function PODetailPage() {
         await reconcilePurchaseOrderWithCurrentPdf(poId);
       } catch (error) {
         throw new Error(
-          `QuickBooks was updated, but reconciliation failed: ${error.message || 'Could not rerun the comparison.'}`
+          `QuickBooks was updated, but reconciliation failed: ${error.message || 'Could not rerun the comparison.'}`,
+          { cause: error }
         );
       }
 
@@ -784,11 +822,7 @@ export default function PODetailPage() {
         phase: 'refreshing',
       });
 
-      const updatedOrder = await fetchPurchaseOrderByPoNumber(poId);
-
-      if (updatedOrder) {
-        setOrder(updatedOrder);
-      }
+      await refreshPurchaseOrderDetails();
 
       setQbLineUpdateState({
         error: '',
@@ -808,8 +842,20 @@ export default function PODetailPage() {
       });
     } catch (error) {
       console.error('Error updating QuickBooks line:', error);
+
+      if (isStaleQuickBooksError(error)) {
+        try {
+          const updatedOrder = await refreshPurchaseOrderDetails();
+          syncEditorWithOrder(updatedOrder, editingQbLine);
+        } catch (refreshError) {
+          console.error('Error refreshing stale QuickBooks line:', refreshError);
+        }
+      }
+
       setQbLineUpdateState({
-        error: error.message || 'Could not update the QuickBooks line.',
+        error: isStaleQuickBooksError(error)
+          ? `${error.message} The latest PO data was refreshed. Review the line and save again.`
+          : error.message || 'Could not update the QuickBooks line.',
         isSaving: false,
         phase: 'idle',
       });
