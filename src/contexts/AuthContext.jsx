@@ -87,41 +87,6 @@ export function AuthProvider({ children }) {
         };
     }, [applySession]);
 
-    const register = useCallback(async ({ email, fullName, password }) => {
-        setError(null);
-        setIsLoading(true);
-
-        try {
-            const client = assertSupabaseConfig();
-            const { data, error: signUpError } = await client.auth.signUp({
-                email,
-                password,
-                options: {
-                    emailRedirectTo: `${window.location.origin}/dashboard`,
-                    data: {
-                        full_name: fullName,
-                        fullName,
-                    },
-                },
-            });
-
-            if (signUpError) throw signUpError;
-            applySession(data.session);
-
-            return {
-                user: normalizeSupabaseUser(data.user),
-                session: data.session,
-                needsEmailConfirmation: Boolean(data.user && !data.session),
-            };
-        } catch (err) {
-            const errorMsg = getAuthErrorMessage(err, 'api.auth.registrationFailed');
-            setError(errorMsg);
-            throw err;
-        } finally {
-            setIsLoading(false);
-        }
-    }, [applySession]);
-
     const login = useCallback(async ({ email, password }) => {
         setError(null);
         setIsLoading(true);
@@ -190,12 +155,11 @@ export function AuthProvider({ children }) {
         isLoading,
         error,
         isAuthenticated: Boolean(session?.access_token && user),
-        register,
         login,
         loginWithGoogle,
         logout,
         clearError: () => setError(null),
-    }), [error, isLoading, login, loginWithGoogle, logout, register, session, user]);
+    }), [error, isLoading, login, loginWithGoogle, logout, session, user]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

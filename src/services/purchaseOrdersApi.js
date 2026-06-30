@@ -129,9 +129,26 @@ const buildAlert = (data, row) => {
 
 const getSupabaseSessionToken = async () => {
   const client = assertSupabaseConfig();
-  const { data } = await client.auth.getSession();
+  const { data, error } = await client.auth.getSession();
+
+  if (error) {
+    throw error;
+  }
 
   return data.session?.access_token || null;
+};
+
+export const getWebhookAuthHeaders = async ({ hasJsonBody = false } = {}) => {
+  const sessionToken = await getSupabaseSessionToken();
+
+  if (!sessionToken) {
+    throw new Error('Your session has expired. Sign in again before continuing.');
+  }
+
+  return {
+    Authorization: `Bearer ${sessionToken}`,
+    ...(hasJsonBody ? { 'Content-Type': 'application/json' } : {}),
+  };
 };
 
 const getSupabaseHeaders = async ({ hasBody = false, useSession = true } = {}) => {
@@ -147,25 +164,10 @@ const getSupabaseHeaders = async ({ hasBody = false, useSession = true } = {}) =
 };
 
 const fetchSupabaseStorage = async (url, options = {}, { hasBody = false } = {}) => {
-  const headers = {
-    ...(await getSupabaseHeaders({ hasBody })),
-    ...(options.headers || {}),
-  };
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  const hasSessionToken = Boolean(await getSupabaseSessionToken());
-
-  if (response.ok || !hasSessionToken) {
-    return response;
-  }
-
   return fetch(url, {
     ...options,
     headers: {
-      ...(await getSupabaseHeaders({ hasBody, useSession: false })),
+      ...(await getSupabaseHeaders({ hasBody })),
       ...(options.headers || {}),
     },
   });
@@ -310,8 +312,8 @@ export const updateQuickBooksPurchaseOrderLine = async ({
   const response = await fetch(QB_LINE_UPDATE_WEBHOOK, {
     method: 'POST',
     headers: {
+      ...(await getWebhookAuthHeaders({ hasJsonBody: true })),
       Accept: 'application/json',
-      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       po_number: String(poNumber),
@@ -345,6 +347,7 @@ export const reconcilePurchaseOrderWithCurrentPdf = async (poNumber) => {
 
   const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
     method: 'POST',
+    headers: await getWebhookAuthHeaders(),
     body: formData,
   });
 

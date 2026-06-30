@@ -190,6 +190,15 @@
   overflow-wrap: anywhere;
 }
 
+.batch-result-warning {
+  color: #b45309;
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
 .batch-result-status {
   border-radius: 999px;
   flex: 0 0 auto;
@@ -212,6 +221,15 @@
 .batch-result-row--success .batch-result-status {
   background-color: #ecfdf5;
   color: #059669;
+}
+
+.batch-result-row--warning {
+  background-color: #fffbeb;
+}
+
+.batch-result-row--warning .batch-result-status {
+  background-color: #fef3c7;
+  color: #b45309;
 }
 
 .batch-result-row--error .batch-result-status {

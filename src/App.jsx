@@ -13,7 +13,6 @@ import Icon from './components/ui/Icon.jsx';
 import LoadingScreen from './components/ui/LoadingScreen.jsx';
 import ThemeToggle from './components/ui/ThemeToggle.jsx';
 import Login from './components/pages/Login.jsx';
-import Register from './components/pages/Register.jsx';
 import ModulePlaceholder from './features/platform/ModulePlaceholder.jsx';
 import PlatformHome from './features/platform/PlatformHome.jsx';
 
@@ -159,7 +158,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -288,7 +287,7 @@ export default function App() {
               }
             />
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/register" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

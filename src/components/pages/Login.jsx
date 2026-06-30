@@ -1,6 +1,6 @@
 // WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import { useState } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import BrandLogo from '../ui/BrandLogo';
@@ -87,12 +87,6 @@ export default function Login() {
 
                 <div className="auth-heading-group">
                     <h1 className="auth-headline">{t('auth.login.title')}</h1>
-                    <p className="auth-subline">
-                        {t('auth.login.firstTime')}{' '}
-                        <Link to="/register" className="auth-inline-link">
-                            {t('auth.login.signUpFree')}
-                        </Link>
-                    </p>
                 </div>
 
                 {notice && (

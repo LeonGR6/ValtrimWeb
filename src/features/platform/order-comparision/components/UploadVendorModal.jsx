@@ -1,22 +1,11 @@
 import { useState } from 'react';
 
-import { VENDOR_PDF_UPLOAD_WEBHOOK } from '../../../../services/purchaseOrdersApi';
+import {
+  getWebhookAuthHeaders,
+  VENDOR_PDF_UPLOAD_WEBHOOK,
+} from '../../../../services/purchaseOrdersApi';
+import { findPoNumber, resolveUploadPayload } from '../utils/uploadVendorResponse';
 import '../../../../styles/uploadModal.css';
-
-const getPayload = (responseData) => {
-  if (Array.isArray(responseData)) {
-    return responseData[0]?.json || responseData[0] || {};
-  }
-
-  return responseData?.json || responseData?.data || responseData || {};
-};
-
-const getErrorMessage = (payload, fallback) => (
-  payload?.user_message ||
-  payload?.error_message ||
-  payload?.message ||
-  fallback
-);
 
 const readResponsePayload = async (response) => {
   const contentType = response.headers.get('content-type') || '';
@@ -42,6 +31,7 @@ const createUploadResults = (selectedFiles) => (
 );
 
 const getResultLabel = (result) => {
+  if (result.status === 'success' && result.warning) return 'Warning';
   if (result.status === 'success') return 'OK';
   if (result.status === 'error') return 'Error';
   if (result.status === 'processing') return 'Processing';
@@ -51,7 +41,7 @@ const getResultLabel = (result) => {
 
 const getResultMessage = (result) => {
   if (result.status === 'success') {
-    const poNumber = result.payload?.po_number || result.payload?.poNumber;
+    const poNumber = findPoNumber(result.payload);
     return poNumber ? `PO ${poNumber}` : 'Saved successfully';
   }
 
@@ -140,21 +130,12 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
 
     const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
       method: 'POST',
+      headers: await getWebhookAuthHeaders(),
       body: formData,
     });
 
     const responseData = await readResponsePayload(response);
-    const payload = getPayload(responseData);
-
-    if (!response.ok) {
-      throw new Error(getErrorMessage(payload, 'Error processing the PDF in n8n.'));
-    }
-
-    if (payload?.success === false || payload?.status === 'FLOW_ERROR') {
-      throw new Error(getErrorMessage(payload, 'The workflow failed before saving the purchase order.'));
-    }
-
-    return payload;
+    return resolveUploadPayload(responseData, response.ok);
   };
 
   const handleProcessFlow = async () => {
@@ -181,6 +162,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
           ...batchResults[index],
           status: 'success',
           payload,
+          warning: payload.persistence_warning || '',
         };
       } catch (error) {
         console.error('Error uploading PDF:', error);
@@ -216,6 +198,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
 
   const successfulCount = results.filter((result) => result.status === 'success').length;
   const failedCount = results.filter((result) => result.status === 'error').length;
+  const warningCount = results.filter((result) => result.status === 'success' && result.warning).length;
   const processedCount = successfulCount + failedCount;
   const hasSelectedFiles = files.length > 0;
   const isSingleSuccessfulUpload = files.length === 1 && successfulCount === 1;
@@ -309,22 +292,29 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
 
         {status === 'complete' && (
           <div className="modal-step text-center">
-            <div className={failedCount > 0 ? 'warning-icon' : 'success-icon'}>
-              {failedCount > 0 ? '!' : 'OK'}
+            <div className={failedCount > 0 || warningCount > 0 ? 'warning-icon' : 'success-icon'}>
+              {failedCount > 0 || warningCount > 0 ? '!' : 'OK'}
             </div>
             <h3>{files.length > 1 ? 'Batch Complete' : successfulCount ? 'Purchase Order Saved' : 'PDF Not Saved'}</h3>
             <p>
               {successfulCount} successful, {failedCount} failed.
+              {warningCount > 0 ? ` ${warningCount} saved with a warning.` : ''}
               {errorMessage ? ` ${errorMessage}` : ''}
             </p>
 
             <div className="batch-results batch-results--complete">
               {results.map((result) => (
-                <div className={`batch-result-row batch-result-row--${result.status}`} key={result.id}>
+                <div
+                  className={`batch-result-row batch-result-row--${result.warning ? 'warning' : result.status}`}
+                  key={result.id}
+                >
                   <div>
                     <span className="batch-result-file">{result.fileName}</span>
                     {getResultMessage(result) && (
                       <span className="batch-result-message">{getResultMessage(result)}</span>
+                    )}
+                    {result.warning && (
+                      <span className="batch-result-warning" role="status">{result.warning}</span>
                     )}
                   </div>
                   <span className="batch-result-status">{getResultLabel(result)}</span>
