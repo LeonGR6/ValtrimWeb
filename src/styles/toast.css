@@ -1,0 +1,117 @@
+.toast-viewport {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 120;
+  display: grid;
+  width: min(25rem, calc(100vw - 2rem));
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.app-toast {
+  --toast-tone: var(--accent);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  overflow: hidden;
+  color: var(--text-1);
+  background: color-mix(in srgb, var(--bg-panel-strong) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--toast-tone) 42%, var(--line-soft));
+  border-left: 0.28rem solid var(--toast-tone);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+  animation: toast-enter 220ms var(--easing-standard) both;
+}
+
+.app-toast--success {
+  --toast-tone: #4db37e;
+}
+
+.app-toast--warning {
+  --toast-tone: #e0a43c;
+}
+
+.app-toast--error {
+  --toast-tone: #e67676;
+}
+
+.app-toast__icon {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  color: color-mix(in srgb, var(--toast-tone) 86%, var(--text-1));
+  background: color-mix(in srgb, var(--toast-tone) 18%, transparent);
+  border-radius: 50%;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.app-toast__content {
+  min-width: 0;
+}
+
+.app-toast__content strong {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.app-toast__content p {
+  margin: 0.22rem 0 0;
+  color: var(--text-2);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.app-toast__close {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  color: var(--text-3);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.app-toast__close:hover,
+.app-toast__close:focus-visible {
+  color: var(--text-1);
+  background: var(--bg-panel-muted);
+  outline: none;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(1rem, -0.25rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (max-width: 640px) {
+  .toast-viewport {
+    top: auto;
+    right: 0.75rem;
+    bottom: 5.5rem;
+    left: 0.75rem;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast {
+    animation: none;
+  }
+}

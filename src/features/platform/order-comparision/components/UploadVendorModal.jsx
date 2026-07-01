@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   getWebhookAuthHeaders,
   VENDOR_PDF_UPLOAD_WEBHOOK,
 } from '../../../../services/purchaseOrdersApi';
 import { findPoNumber, resolveUploadPayload } from '../utils/uploadVendorResponse';
+import {
+  formatFileSize,
+  getFailedUploadIds,
+  getFileIdentity,
+  mergeSelectedPdfFiles,
+} from '../utils/selectedUploadFiles';
 import '../../../../styles/uploadModal.css';
 
 const readResponsePayload = async (response) => {
@@ -23,8 +29,9 @@ const readResponsePayload = async (response) => {
 };
 
 const createUploadResults = (selectedFiles) => (
-  selectedFiles.map((selectedFile, index) => ({
-    id: `${index}-${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}`,
+  selectedFiles.map((selectedFile) => ({
+    fileSize: formatFileSize(selectedFile.size),
+    id: getFileIdentity(selectedFile),
     fileName: selectedFile.name,
     status: 'queued',
   }))
@@ -35,6 +42,7 @@ const getResultLabel = (result) => {
   if (result.status === 'success') return 'OK';
   if (result.status === 'error') return 'Error';
   if (result.status === 'processing') return 'Processing';
+  if (result.status === 'canceled') return 'Canceled';
 
   return 'Queued';
 };
@@ -49,13 +57,12 @@ const getResultMessage = (result) => {
     return result.error || 'Could not process this PDF.';
   }
 
+  if (result.status === 'canceled') {
+    return 'This PDF was not completed.';
+  }
+
   return '';
 };
-
-const isPdfFile = (file) => (
-  file?.type === 'application/pdf' ||
-  String(file?.name || '').toLowerCase().endsWith('.pdf')
-);
 
 export default function UploadVendorModal({ onClose, onUploadSuccess }) {
   const [status, setStatus] = useState('idle');
@@ -64,19 +71,46 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
   const [results, setResults] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const activeUploadController = useRef(null);
+  const cancelRequested = useRef(false);
+
+  useEffect(() => () => {
+    cancelRequested.current = true;
+    activeUploadController.current?.abort();
+  }, []);
 
   const setSelectedFiles = (nextFiles) => {
-    const selectedFiles = Array.from(nextFiles || []);
-    const pdfFiles = selectedFiles.filter(isPdfFile);
+    const selection = mergeSelectedPdfFiles(files, nextFiles);
+    const messages = [];
 
-    setFiles(pdfFiles);
-    setResults(createUploadResults(pdfFiles));
+    if (selection.rejectedCount > 0) {
+      messages.push('Only PDF files can be uploaded.');
+    }
+
+    if (selection.duplicateCount > 0) {
+      messages.push(
+        `${selection.duplicateCount} duplicate PDF${selection.duplicateCount === 1 ? ' was' : 's were'} already selected.`
+      );
+    }
+
+    if (selection.oversizedFiles.length > 0) {
+      const names = selection.oversizedFiles.map((file) => file.name).join(', ');
+      messages.push(
+        `${selection.oversizedFiles.length} PDF${selection.oversizedFiles.length === 1 ? '' : 's'} exceeded the 10 MB limit and ${selection.oversizedFiles.length === 1 ? 'was' : 'were'} not added: ${names}.`
+      );
+    }
+
+    setFiles(selection.files);
+    setResults(createUploadResults(selection.files));
     setSavedData(null);
-    setErrorMessage(
-      selectedFiles.length > pdfFiles.length
-        ? 'Only PDF files can be uploaded.'
-        : ''
-    );
+    setErrorMessage(messages.join(' '));
+  };
+
+  const handleRemoveFile = (fileId) => {
+    setFiles((currentFiles) => currentFiles.filter((file) => getFileIdentity(file) !== fileId));
+    setResults((currentResults) => currentResults.filter((result) => result.id !== fileId));
+    setSavedData(null);
   };
 
   const handleFileChange = (event) => {
@@ -124,7 +158,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
     setSelectedFiles(event.dataTransfer.files);
   };
 
-  const processSingleFile = async (file) => {
+  const processSingleFile = async (file, signal) => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -132,31 +166,55 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
       method: 'POST',
       headers: await getWebhookAuthHeaders(),
       body: formData,
+      signal,
     });
 
     const responseData = await readResponsePayload(response);
     return resolveUploadPayload(responseData, response.ok);
   };
 
-  const handleProcessFlow = async () => {
+  const handleProcessFlow = async ({ retryFailedOnly = false } = {}) => {
     if (files.length === 0) return;
+
+    const failedIds = new Set(getFailedUploadIds(results));
+    const uploadIds = retryFailedOnly
+      ? files.map(getFileIdentity).filter((id) => failedIds.has(id))
+      : files.map(getFileIdentity);
+
+    if (uploadIds.length === 0) return;
 
     setStatus('processing');
     setErrorMessage('');
     setSavedData(null);
+    setIsCanceling(false);
+    cancelRequested.current = false;
 
-    const batchResults = createUploadResults(files);
-    setResults(batchResults);
+    const existingResults = retryFailedOnly ? results : createUploadResults(files);
+    const batchResults = existingResults.map((result) => (
+      uploadIds.includes(result.id)
+        ? { ...result, error: '', status: 'queued', warning: '' }
+        : result
+    ));
+    setResults([...batchResults]);
 
-    for (let index = 0; index < files.length; index += 1) {
+    for (const fileId of uploadIds) {
+      if (cancelRequested.current) break;
+
+      const index = batchResults.findIndex((result) => result.id === fileId);
+      const file = files.find((candidate) => getFileIdentity(candidate) === fileId);
+      if (index === -1 || !file) continue;
+
       batchResults[index] = {
         ...batchResults[index],
         status: 'processing',
       };
       setResults([...batchResults]);
 
+      const controller = new AbortController();
+      activeUploadController.current = controller;
+
       try {
-        const payload = await processSingleFile(files[index]);
+        const payload = await processSingleFile(file, controller.signal);
 
         batchResults[index] = {
           ...batchResults[index],
@@ -165,21 +223,42 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
           warning: payload.persistence_warning || '',
         };
       } catch (error) {
-        console.error('Error uploading PDF:', error);
-
-        batchResults[index] = {
-          ...batchResults[index],
-          status: 'error',
-          error: error.message || 'There was an error processing the PDF. Please try again.',
-        };
+        if (error.name === 'AbortError' || cancelRequested.current) {
+          batchResults[index] = {
+            ...batchResults[index],
+            status: 'canceled',
+          };
+        } else {
+          console.error('Error uploading PDF:', error);
+          batchResults[index] = {
+            ...batchResults[index],
+            status: 'error',
+            error: error.message || 'There was an error processing the PDF. Please try again.',
+          };
+        }
+      } finally {
+        activeUploadController.current = null;
       }
 
+      setResults([...batchResults]);
+      if (cancelRequested.current) break;
+    }
+
+    if (cancelRequested.current) {
+      uploadIds.forEach((fileId) => {
+        const index = batchResults.findIndex((result) => result.id === fileId);
+        if (index !== -1 && batchResults[index].status === 'queued') {
+          batchResults[index] = { ...batchResults[index], status: 'canceled' };
+        }
+      });
       setResults([...batchResults]);
     }
 
     const successfulResults = batchResults.filter((result) => result.status === 'success');
 
-    if (successfulResults.length === 0) {
+    if (cancelRequested.current) {
+      setErrorMessage('Processing was canceled. PDFs that had not started were not sent.');
+    } else if (successfulResults.length === 0) {
       setErrorMessage('No PDF was processed successfully.');
     }
 
@@ -188,7 +267,18 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
         ? successfulResults[0]?.payload || batchResults[0]
         : { isBatch: true, results: batchResults }
     );
+    setIsCanceling(false);
     setStatus('complete');
+  };
+
+  const handleCancelProcessing = () => {
+    cancelRequested.current = true;
+    setIsCanceling(true);
+    activeUploadController.current?.abort();
+  };
+
+  const handleRetryFailed = () => {
+    handleProcessFlow({ retryFailedOnly: true });
   };
 
   const handleFinish = async () => {
@@ -198,8 +288,9 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
 
   const successfulCount = results.filter((result) => result.status === 'success').length;
   const failedCount = results.filter((result) => result.status === 'error').length;
+  const canceledCount = results.filter((result) => result.status === 'canceled').length;
   const warningCount = results.filter((result) => result.status === 'success' && result.warning).length;
-  const processedCount = successfulCount + failedCount;
+  const processedCount = successfulCount + failedCount + canceledCount;
   const hasSelectedFiles = files.length > 0;
   const isSingleSuccessfulUpload = files.length === 1 && successfulCount === 1;
 
@@ -234,7 +325,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
             >
               <input
                 type="file"
-                accept=".pdf"
+                accept=".pdf,application/pdf"
                 multiple
                 id="pdf-upload"
                 onChange={handleFileChange}
@@ -248,11 +339,25 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
 
             {hasSelectedFiles && (
               <div className="selected-file-list" aria-label="Selected PDFs">
-                {files.map((selectedFile, index) => (
-                  <div className="selected-file-item" key={`${index}-${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}`}>
-                    {selectedFile.name}
-                  </div>
-                ))}
+                {files.map((selectedFile) => {
+                  const fileId = getFileIdentity(selectedFile);
+                  return (
+                    <div className="selected-file-item" key={fileId}>
+                      <div className="selected-file-info">
+                        <span>{selectedFile.name}</span>
+                        <small>{formatFileSize(selectedFile.size)}</small>
+                      </div>
+                      <button
+                        className="selected-file-remove"
+                        type="button"
+                        aria-label={`Remove ${selectedFile.name}`}
+                        onClick={() => handleRemoveFile(fileId)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -282,10 +387,23 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
             <div className="batch-results" aria-live="polite">
               {results.map((result) => (
                 <div className={`batch-result-row batch-result-row--${result.status}`} key={result.id}>
-                  <span className="batch-result-file">{result.fileName}</span>
+                  <div>
+                    <span className="batch-result-file">{result.fileName}</span>
+                    <span className="batch-result-size">{result.fileSize}</span>
+                  </div>
                   <span className="batch-result-status">{getResultLabel(result)}</span>
                 </div>
               ))}
+            </div>
+            <div className="modal-actions centered">
+              <button
+                className="btn-secondary btn-cancel-upload"
+                type="button"
+                disabled={isCanceling}
+                onClick={handleCancelProcessing}
+              >
+                {isCanceling ? 'Canceling...' : 'Cancel pending uploads'}
+              </button>
             </div>
           </div>
         )}
@@ -298,6 +416,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
             <h3>{files.length > 1 ? 'Batch Complete' : successfulCount ? 'Purchase Order Saved' : 'PDF Not Saved'}</h3>
             <p>
               {successfulCount} successful, {failedCount} failed.
+              {canceledCount > 0 ? ` ${canceledCount} canceled.` : ''}
               {warningCount > 0 ? ` ${warningCount} saved with a warning.` : ''}
               {errorMessage ? ` ${errorMessage}` : ''}
             </p>
@@ -310,6 +429,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
                 >
                   <div>
                     <span className="batch-result-file">{result.fileName}</span>
+                    <span className="batch-result-size">{result.fileSize}</span>
                     {getResultMessage(result) && (
                       <span className="batch-result-message">{getResultMessage(result)}</span>
                     )}
@@ -323,6 +443,11 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
             </div>
 
             <div className="modal-actions centered">
+              {failedCount > 0 && (
+                <button className="btn-secondary" type="button" onClick={handleRetryFailed}>
+                  Retry failed ({failedCount})
+                </button>
+              )}
               {successfulCount === 0 && (
                 <button className="btn-secondary" onClick={onClose}>Close</button>
               )}

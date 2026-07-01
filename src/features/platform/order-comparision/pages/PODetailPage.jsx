@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useToast } from '../../../../contexts/ToastContext.jsx';
 import PODetailHeader from '../components/po-detail/PODetailHeader.jsx';
 import PODetailTable from '../components/po-detail/PODetailTable.jsx';
+import { getPersistenceNotifications } from '../utils/reconciliationNotifications.js';
 import {
   fetchCurrentPurchaseOrderPdf,
   fetchPurchaseOrderByPoNumber,
@@ -710,6 +712,7 @@ const buildDetailFromOrder = (order, poId) => {
 };
 
 export default function PODetailPage() {
+  const { addToast } = useToast();
   const { poId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -908,10 +911,16 @@ export default function PODetailPage() {
     const nextRate = Number(qbLineDraft.rate);
 
     if (!Number.isFinite(nextQty) || nextQty <= 0 || !Number.isFinite(nextRate) || nextRate < 0) {
+      const validationMessage = 'Enter a valid quantity and unit rate before saving.';
       setQbLineUpdateState({
-        error: 'Enter a valid quantity and unit rate before saving.',
+        error: validationMessage,
         isSaving: false,
         phase: 'idle',
+      });
+      addToast({
+        tone: 'error',
+        title: 'Invalid line values',
+        message: validationMessage,
       });
       return;
     }
@@ -921,6 +930,8 @@ export default function PODetailPage() {
       isSaving: true,
       phase: 'saving-qb',
     });
+
+    let failureStage = 'quickbooks';
 
     try {
       await updateQuickBooksPurchaseOrderLine({
@@ -933,14 +944,23 @@ export default function PODetailPage() {
         qbDescription: editingQbLine.poDescription,
       });
 
+      addToast({
+        tone: 'success',
+        title: 'QuickBooks updated',
+        message: `Line ${editingQbLine.poLineNumber} of PO ${poId} was updated successfully.`,
+      });
+
       setQbLineUpdateState({
         error: '',
         isSaving: true,
         phase: 'reconciling',
       });
 
+      failureStage = 'comparison';
+
+      let reconciliationResult;
       try {
-        await reconcilePurchaseOrderWithCurrentPdf(poId);
+        reconciliationResult = await reconcilePurchaseOrderWithCurrentPdf(poId);
       } catch (error) {
         throw new Error(
           `QuickBooks was updated, but reconciliation failed: ${error.message || 'Could not rerun the comparison.'}`,
@@ -948,11 +968,20 @@ export default function PODetailPage() {
         );
       }
 
+      addToast({
+        tone: 'success',
+        title: 'Comparison completed',
+        message: `PO ${poId} was compared again using its current PDF.`,
+      });
+      getPersistenceNotifications(reconciliationResult).forEach(addToast);
+
       setQbLineUpdateState({
         error: '',
         isSaving: true,
         phase: 'refreshing',
       });
+
+      failureStage = 'refresh';
 
       await refreshPurchaseOrderDetails();
 
@@ -974,6 +1003,18 @@ export default function PODetailPage() {
       });
     } catch (error) {
       console.error('Error updating QuickBooks line:', error);
+
+      const failureTitle = {
+        quickbooks: 'QuickBooks update failed',
+        comparison: 'Comparison failed',
+        refresh: 'Data refresh failed',
+      }[failureStage];
+
+      addToast({
+        tone: 'error',
+        title: failureTitle,
+        message: error.message || 'The operation could not be completed.',
+      });
 
       if (isStaleQuickBooksError(error)) {
         try {

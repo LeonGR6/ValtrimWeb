@@ -70,6 +70,10 @@ export const formatWorkflowStatus = (status) => {
 
   const normalized = String(status).toUpperCase();
 
+  if (normalized === 'DRAFT') {
+    return 'Draft';
+  }
+
   if (normalized === 'PENDING') {
     return 'Pending';
   }

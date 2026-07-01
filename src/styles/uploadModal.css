@@ -137,11 +137,50 @@
 }
 
 .selected-file-item {
+  align-items: center;
   color: #334155;
+  display: flex;
   font-size: 0.85rem;
+  gap: 1rem;
+  justify-content: space-between;
   padding: 0.65rem 0.85rem;
   text-align: left;
   word-break: break-word;
+}
+
+.selected-file-info {
+  min-width: 0;
+}
+
+.selected-file-info span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.selected-file-info small,
+.batch-result-size {
+  color: #64748b;
+  display: block;
+  font-size: 0.72rem;
+  margin-top: 0.15rem;
+}
+
+.selected-file-remove {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.5rem;
+  color: #b91c1c;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.selected-file-remove:hover,
+.selected-file-remove:focus-visible {
+  background: #fef2f2;
+  outline: none;
 }
 
 .selected-file-item + .selected-file-item {
@@ -237,6 +276,11 @@
   color: #dc2626;
 }
 
+.batch-result-row--canceled .batch-result-status {
+  background-color: #f1f5f9;
+  color: #64748b;
+}
+
 /* ==========================================
    BOTONES Y ACCIONES
    ========================================== */
@@ -295,6 +339,16 @@
   align-items: center;
   justify-content: center;
   margin: 0 auto 1.5rem auto;
+}
+
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn-cancel-upload {
+  color: #b91c1c;
+  border-color: #fecaca;
 }
 
 .warning-icon {
