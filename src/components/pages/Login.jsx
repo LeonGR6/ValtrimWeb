@@ -12,7 +12,7 @@ export default function Login() {
     const navigate = useNavigate();
     const location = useLocation();
     const { t, i18n } = useTranslation();
-    const { login, loginWithGoogle, requestPasswordReset, isLoading, error, clearError } = useAuth();
+    const { login, requestPasswordReset, isLoading, error, clearError } = useAuth();
 
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [authMode, setAuthMode] = useState('login');
@@ -64,15 +64,6 @@ export default function Login() {
         }
     };
 
-    const handleGoogleLogin = async () => {
-        setFormError('');
-        try {
-            await loginWithGoogle();
-        } catch (err) {
-            setFormError(err.message);
-        }
-    };
-
     const showPasswordReset = () => {
         setAuthMode('password-reset');
         setFormError('');
@@ -101,10 +92,11 @@ export default function Login() {
 
     return (
         <div className="auth-scene">
-            <div className="auth-blob auth-blob-1" />
-            <div className="auth-blob auth-blob-2" />
-
-            <div className="auth-panel auth-panel--login">
+            <div className="auth-topbar">
+                <div className="auth-wordmark" aria-label="Valtrim">
+                    <BrandLogo className="auth-wordmark-logo" />
+                    <span>Valtrim</span>
+                </div>
                 <div className="auth-lang-switch" role="group" aria-label={t('a11y.languageSelector')}>
                     <button
                         type="button"
@@ -121,9 +113,15 @@ export default function Login() {
                         EN
                     </button>
                 </div>
+            </div>
 
+            <div className="auth-panel auth-panel--login">
                 <div className="auth-brand-icon">
                     <BrandLogo />
+                </div>
+                <div className="auth-brand-copy">
+                    <span>Valtrim</span>
+                    <p>{t('auth.login.workspaceSubtitle')}</p>
                 </div>
 
                 <div className="auth-heading-group">
@@ -153,17 +151,25 @@ export default function Login() {
                     className="auth-form"
                     onSubmit={isPasswordResetMode ? handlePasswordResetSubmit : handleSubmit}
                 >
-                    <input
-                        className="auth-input"
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        placeholder={t('auth.yourEmail')}
-                        required
-                        disabled={isBusy}
-                        autoComplete="email"
-                    />
+                    <label className="auth-field">
+                        <span className="auth-field-icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                                <path d="M4 6.5h16v11H4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                                <path d="M5 7l7 6 7-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </span>
+                        <input
+                            className="auth-input"
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            placeholder={t('auth.yourEmail')}
+                            required
+                            disabled={isBusy}
+                            autoComplete="email"
+                        />
+                    </label>
 
                     {isPasswordResetMode ? (
                         <>
@@ -205,34 +211,6 @@ export default function Login() {
                                 {isLoading ? t('auth.login.signingIn') : t('auth.login.signIn')}
                             </button>
 
-                            {/* <div className="auth-sep">{t('auth.login.or')}</div>
-
-                            <button
-                                type="button"
-                                className="auth-btn-sso auth-btn-sso--google"
-                                onClick={handleGoogleLogin}
-                                disabled={isBusy}
-                            >
-                                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path
-                                        fill="#EA4335"
-                                        d="M12 10.2v3.9h5.5c-.2 1.2-.9 2.3-1.9 3.1l3 2.3c1.8-1.7 2.8-4.1 2.8-6.9 0-.7-.1-1.4-.2-2.1H12z"
-                                    />
-                                    <path
-                                        fill="#34A853"
-                                        d="M12 21c2.5 0 4.6-.8 6.2-2.2l-3-2.3c-.8.6-1.9 1-3.2 1-2.5 0-4.5-1.7-5.2-3.9H3.7v2.4C5.3 19.1 8.4 21 12 21z"
-                                    />
-                                    <path
-                                        fill="#4A90E2"
-                                        d="M6.8 13.6c-.2-.6-.3-1.1-.3-1.7s.1-1.2.3-1.7V7.8H3.7C3.2 8.9 3 10 3 11.9c0 1.8.2 3 .7 4.1l3.1-2.4z"
-                                    />
-                                    <path
-                                        fill="#FBBC05"
-                                        d="M12 6.3c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.8 3.3 14.7 2.4 12 2.4c-3.6 0-6.7 1.9-8.3 4.8l3.1 2.4c.7-2.2 2.7-3.9 5.2-3.9z"
-                                    />
-                                </svg>
-                                {t('auth.login.continueWithGoogle')}
-                            </button> */}
                         </>
                     )}
                 </form>

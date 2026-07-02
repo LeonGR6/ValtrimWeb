@@ -8,6 +8,13 @@ export default function PasswordField({ className = 'auth-input', ...inputProps 
 
     return (
         <div className="auth-password-wrap">
+            <span className="auth-password-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path d="M7 10V8a5 5 0 0110 0v2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                    <path d="M6 10h12v10H6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                    <path d="M12 14v2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                </svg>
+            </span>
             <input
                 {...inputProps}
                 className={className}
