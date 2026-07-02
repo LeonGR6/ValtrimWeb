@@ -366,6 +366,117 @@
 /* ==========================================================================
    STATUS BADGES
    ========================================================================== */
+.order-alert-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.order-alert-badge {
+  --alert-color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 4px 9px 4px 5px;
+  color: var(--alert-color);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.order-alert-badge__icon {
+  display: inline-grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--alert-color);
+  color: #fff;
+  font-size: 11px;
+}
+
+.order-alert-badge--ok {
+  --alert-color: #166534;
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+
+.order-alert-badge--review {
+  --alert-color: #9a4d0a;
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.order-alert-badge--pending {
+  --alert-color: #475569;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.order-alert-badge--error {
+  --alert-color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.order-ai-suggestion-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 8px;
+  color: #5b21b6;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.order-issues-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.order-issue-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 23px;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.order-issue-chip--discrepancy {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.order-issue-chip--warning {
+  color: #9a4d0a;
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.order-issues-clear {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;

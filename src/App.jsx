@@ -13,6 +13,7 @@ import Icon from './components/ui/Icon.jsx';
 import LoadingScreen from './components/ui/LoadingScreen.jsx';
 import ThemeToggle from './components/ui/ThemeToggle.jsx';
 import Login from './components/pages/Login.jsx';
+import ResetPassword from './components/pages/ResetPassword.jsx';
 import ModulePlaceholder from './features/platform/ModulePlaceholder.jsx';
 import PlatformHome from './features/platform/PlatformHome.jsx';
 
@@ -137,9 +138,11 @@ export default function App() {
   const routeMeta = getRouteMeta(location.pathname, t);
 
   // Show auth pages without shell
+  const isPasswordResetPage = location.pathname === '/reset-password';
   const isAuthPage =
     location.pathname === '/login' ||
-    location.pathname === '/register';
+    location.pathname === '/register' ||
+    isPasswordResetPage;
 
   if (isAuthPage) {
     if (isLoading) {
@@ -151,7 +154,7 @@ export default function App() {
       );
     }
 
-    if (isAuthenticated) {
+    if (isAuthenticated && !isPasswordResetPage) {
       return <Navigate to="/dashboard" replace />;
     }
 
@@ -159,6 +162,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Navigate to="/login" replace />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );

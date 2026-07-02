@@ -14,7 +14,9 @@
       "sessionFailed": "No se pudo restaurar la sesion de Supabase",
       "couldNotSignIn": "No se pudo iniciar sesión",
       "registrationFailed": "Falló el registro",
-      "loginFailed": "Falló el inicio de sesión"
+      "loginFailed": "Falló el inicio de sesión",
+      "passwordResetFailed": "No se pudo enviar el enlace de restablecimiento",
+      "passwordUpdateFailed": "No se pudo actualizar la contraseña"
     }
   }
 }

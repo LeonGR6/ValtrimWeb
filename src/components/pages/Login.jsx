@@ -12,12 +12,15 @@ export default function Login() {
     const navigate = useNavigate();
     const location = useLocation();
     const { t, i18n } = useTranslation();
-    const { login, loginWithGoogle, isLoading, error, clearError } = useAuth();
+    const { login, loginWithGoogle, requestPasswordReset, isLoading, error, clearError } = useAuth();
 
     const [formData, setFormData] = useState({ email: '', password: '' });
+    const [authMode, setAuthMode] = useState('login');
     const [formError, setFormError] = useState('');
+    const [isSendingReset, setIsSendingReset] = useState(false);
     const [notice, setNotice] = useState(location.state?.notice || '');
     const fromPath = location.state?.from?.pathname || '/dashboard';
+    const isPasswordResetMode = authMode === 'password-reset';
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -38,6 +41,29 @@ export default function Login() {
         }
     };
 
+    const handlePasswordResetSubmit = async (e) => {
+        e.preventDefault();
+        setFormError('');
+        setNotice('');
+
+        const email = formData.email.trim();
+        if (!email) {
+            setFormError(t('auth.passwordReset.emailRequired'));
+            return;
+        }
+
+        setIsSendingReset(true);
+        try {
+            await requestPasswordReset(email);
+            setNotice(t('auth.passwordReset.checkEmail'));
+            setAuthMode('login');
+        } catch (err) {
+            setFormError(err.message);
+        } finally {
+            setIsSendingReset(false);
+        }
+    };
+
     const handleGoogleLogin = async () => {
         setFormError('');
         try {
@@ -47,7 +73,22 @@ export default function Login() {
         }
     };
 
+    const showPasswordReset = () => {
+        setAuthMode('password-reset');
+        setFormError('');
+        setNotice('');
+        if (error) clearError();
+    };
+
+    const showLogin = () => {
+        setAuthMode('login');
+        setFormError('');
+        setNotice('');
+        if (error) clearError();
+    };
+
     const resolvedLang = i18n.resolvedLanguage === 'es' ? 'es' : 'en';
+    const isBusy = isLoading || isSendingReset;
 
     if (isLoading) {
         return (
@@ -86,7 +127,12 @@ export default function Login() {
                 </div>
 
                 <div className="auth-heading-group">
-                    <h1 className="auth-headline">{t('auth.login.title')}</h1>
+                    <h1 className="auth-headline">
+                        {isPasswordResetMode ? t('auth.passwordReset.title') : t('auth.login.title')}
+                    </h1>
+                    {isPasswordResetMode && (
+                        <p className="auth-subline">{t('auth.passwordReset.subtitle')}</p>
+                    )}
                 </div>
 
                 {notice && (
@@ -103,7 +149,10 @@ export default function Login() {
                     </div>
                 )}
 
-                <form className="auth-form" onSubmit={handleSubmit}>
+                <form
+                    className="auth-form"
+                    onSubmit={isPasswordResetMode ? handlePasswordResetSubmit : handleSubmit}
+                >
                     <input
                         className="auth-input"
                         type="email"
@@ -112,51 +161,80 @@ export default function Login() {
                         onChange={handleChange}
                         placeholder={t('auth.yourEmail')}
                         required
-                        disabled={isLoading}
+                        disabled={isBusy}
                         autoComplete="email"
                     />
-                    <PasswordField
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        placeholder={t('auth.password')}
-                        required
-                        disabled={isLoading}
-                        autoComplete="current-password"
-                    />
 
-                    <button type="submit" className="auth-btn-primary" disabled={isLoading}>
-                        {isLoading ? t('auth.login.signingIn') : t('auth.login.signIn')}
-                    </button>
+                    {isPasswordResetMode ? (
+                        <>
+                            <button type="submit" className="auth-btn-primary" disabled={isBusy}>
+                                {isSendingReset ? t('auth.passwordReset.sendingLink') : t('auth.passwordReset.sendLink')}
+                            </button>
 
-                    <div className="auth-sep">{t('auth.login.or')}</div>
+                            <button
+                                type="button"
+                                className="auth-magic-link auth-link-button"
+                                onClick={showLogin}
+                                disabled={isBusy}
+                            >
+                                {t('auth.passwordReset.backToLogin')}
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <PasswordField
+                                name="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                placeholder={t('auth.password')}
+                                required
+                                disabled={isBusy}
+                                autoComplete="current-password"
+                            />
 
-                    <button
-                        type="button"
-                        className="auth-btn-sso auth-btn-sso--google"
-                        onClick={handleGoogleLogin}
-                        disabled={isLoading}
-                    >
-                        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path
-                                fill="#EA4335"
-                                d="M12 10.2v3.9h5.5c-.2 1.2-.9 2.3-1.9 3.1l3 2.3c1.8-1.7 2.8-4.1 2.8-6.9 0-.7-.1-1.4-.2-2.1H12z"
-                            />
-                            <path
-                                fill="#34A853"
-                                d="M12 21c2.5 0 4.6-.8 6.2-2.2l-3-2.3c-.8.6-1.9 1-3.2 1-2.5 0-4.5-1.7-5.2-3.9H3.7v2.4C5.3 19.1 8.4 21 12 21z"
-                            />
-                            <path
-                                fill="#4A90E2"
-                                d="M6.8 13.6c-.2-.6-.3-1.1-.3-1.7s.1-1.2.3-1.7V7.8H3.7C3.2 8.9 3 10 3 11.9c0 1.8.2 3 .7 4.1l3.1-2.4z"
-                            />
-                            <path
-                                fill="#FBBC05"
-                                d="M12 6.3c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.8 3.3 14.7 2.4 12 2.4c-3.6 0-6.7 1.9-8.3 4.8l3.1 2.4c.7-2.2 2.7-3.9 5.2-3.9z"
-                            />
-                        </svg>
-                        {t('auth.login.continueWithGoogle')}
-                    </button>
+                            <button
+                                type="button"
+                                className="auth-form-link auth-link-button"
+                                onClick={showPasswordReset}
+                                disabled={isBusy}
+                            >
+                                {t('auth.login.forgotPassword')}
+                            </button>
+
+                            <button type="submit" className="auth-btn-primary" disabled={isBusy}>
+                                {isLoading ? t('auth.login.signingIn') : t('auth.login.signIn')}
+                            </button>
+
+                            <div className="auth-sep">{t('auth.login.or')}</div>
+
+                            <button
+                                type="button"
+                                className="auth-btn-sso auth-btn-sso--google"
+                                onClick={handleGoogleLogin}
+                                disabled={isBusy}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path
+                                        fill="#EA4335"
+                                        d="M12 10.2v3.9h5.5c-.2 1.2-.9 2.3-1.9 3.1l3 2.3c1.8-1.7 2.8-4.1 2.8-6.9 0-.7-.1-1.4-.2-2.1H12z"
+                                    />
+                                    <path
+                                        fill="#34A853"
+                                        d="M12 21c2.5 0 4.6-.8 6.2-2.2l-3-2.3c-.8.6-1.9 1-3.2 1-2.5 0-4.5-1.7-5.2-3.9H3.7v2.4C5.3 19.1 8.4 21 12 21z"
+                                    />
+                                    <path
+                                        fill="#4A90E2"
+                                        d="M6.8 13.6c-.2-.6-.3-1.1-.3-1.7s.1-1.2.3-1.7V7.8H3.7C3.2 8.9 3 10 3 11.9c0 1.8.2 3 .7 4.1l3.1-2.4z"
+                                    />
+                                    <path
+                                        fill="#FBBC05"
+                                        d="M12 6.3c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.8 3.3 14.7 2.4 12 2.4c-3.6 0-6.7 1.9-8.3 4.8l3.1 2.4c.7-2.2 2.7-3.9 5.2-3.9z"
+                                    />
+                                </svg>
+                                {t('auth.login.continueWithGoogle')}
+                            </button>
+                        </>
+                    )}
                 </form>
             </div>
         </div>

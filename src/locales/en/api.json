@@ -14,7 +14,9 @@
       "couldNotSignIn": "Could not sign in",
       "sessionFailed": "Could not restore the Supabase session",
       "registrationFailed": "Registration failed",
-      "loginFailed": "Login failed"
+      "loginFailed": "Login failed",
+      "passwordResetFailed": "Could not send the password reset link",
+      "passwordUpdateFailed": "Could not update the password"
     }
   }
 }

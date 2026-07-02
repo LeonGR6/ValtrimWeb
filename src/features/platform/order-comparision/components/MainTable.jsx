@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../../components/ui/Icon.jsx';
+import AlertBadge from './AlertBadge.jsx';
 import StatusBadge from './StatusBadge';
 
 const sortableColumns = {
@@ -34,6 +35,32 @@ function SortableHeader({ columnKey, sortConfig, onSort }) {
   );
 }
 
+function IssueSummary({ counts }) {
+  const discrepancies = Number(counts?.discrepancies) || 0;
+  const warnings = Number(counts?.warnings) || 0;
+  const discrepancyLabel = `${discrepancies} ${discrepancies === 1 ? 'discrepancy' : 'discrepancies'}`;
+  const warningLabel = `${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`;
+
+  if (discrepancies === 0 && warnings === 0) {
+    return <span className="order-issues-clear" title="No discrepancies or warnings">0</span>;
+  }
+
+  return (
+    <div className="order-issues-summary" aria-label={`${discrepancyLabel} and ${warningLabel}`}>
+      {discrepancies > 0 && (
+        <span className="order-issue-chip order-issue-chip--discrepancy" title={discrepancyLabel}>
+          D {discrepancies}
+        </span>
+      )}
+      {warnings > 0 && (
+        <span className="order-issue-chip order-issue-chip--warning" title={warningLabel}>
+          W {warnings}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function MainTable({ data, sortConfig, onSort, onDelete, deletingPoNumber }) {
   const navigate = useNavigate();
 
@@ -64,7 +91,13 @@ export default function MainTable({ data, sortConfig, onSort, onDelete, deleting
             {data.map((order) => (
               <tr key={order.id}>
 
-                <td>{order.alert}</td>
+                <td>
+                  <AlertBadge
+                    alert={order.alert}
+                    issues={order.issues}
+                    aiSuggestions={order.aiSuggestions}
+                  />
+                </td>
                 <td>
                   <StatusBadge status={order.status} />
                 </td>
@@ -85,7 +118,7 @@ export default function MainTable({ data, sortConfig, onSort, onDelete, deleting
                 <td>{order.requiredDate}</td>
                 <td>{order.vendorShipDate}</td>
                 <td>{order.ackDate}</td>
-                <td>{order.issues}</td>
+                <td><IssueSummary counts={order.issueCounts} /></td>
                 <td>{order.total}</td>
                 <td>
                   <button

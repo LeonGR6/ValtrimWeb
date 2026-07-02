@@ -1,4 +1,9 @@
 import { assertSupabaseConfig, SUPABASE_ANON_KEY, SUPABASE_URL } from './supabaseClient.js';
+import {
+  buildPurchaseOrderAlert,
+  getPurchaseOrderAiSuggestionCount,
+  getPurchaseOrderIssueCounts,
+} from './purchaseOrderAlert.js';
 
 const QB_LINE_UPDATE_WEBHOOK = '/webhook/update-qb-po-line';
 export const VENDOR_PDF_UPLOAD_WEBHOOK = '/webhook/upload-pdf-vendor';
@@ -109,28 +114,6 @@ const getJsonObject = (value) => {
   }
 };
 
-const getIssueCount = (data, row) => (
-  row.discrepancies_count ??
-  data.summary?.discrepancies_count ??
-  data.discrepancias?.length ??
-  data.ai_differences?.length ??
-  0
-);
-
-const buildAlert = (data, row) => {
-  const status = data.ai_final_status || row.ai_final_status || data.final_status || row.match_status;
-
-  if (status === 'APPROVED' || status === 'AI_APPROVED' || row.match_status === 'MATCH_TOTAL') {
-    return 'OK';
-  }
-
-  if (Number(getIssueCount(data, row)) > 0) {
-    return 'Review';
-  }
-
-  return 'New';
-};
-
 const getSupabaseSessionToken = async () => {
   const client = assertSupabaseConfig();
   const { data, error } = await client.auth.getSession();
@@ -199,10 +182,11 @@ export const normalizePurchaseOrderRow = (row) => {
     ai_final_status: aiFinalStatus,
     ai_confidence: row.ai_confidence ?? latestJson.ai_confidence,
   };
+  const issueCounts = getPurchaseOrderIssueCounts(reconciliation, row);
 
   return {
     id: row.id ?? row.po_number,
-    alert: buildAlert(reconciliation, row),
+    alert: buildPurchaseOrderAlert(reconciliation, row),
     status: formatWorkflowStatus(workflowStatus),
     workflowStatus: formatWorkflowStatus(workflowStatus),
     workflowStatusRaw: workflowStatus,
@@ -218,7 +202,9 @@ export const normalizePurchaseOrderRow = (row) => {
     vendorShipDate: formatDisplayDate(row.ship_date) || 'PENDING',
     ackDate: formatDisplayDate(row.order_date) || 'PENDING',
     total: formatCurrency(row.total_pdf ?? row.total_qb),
-    issues: String(getIssueCount(reconciliation, row)),
+    issues: String(issueCounts.total),
+    issueCounts,
+    aiSuggestions: getPurchaseOrderAiSuggestionCount(reconciliation),
     confirmation: formatWorkflowStatus(workflowStatus),
     reconciliation,
     dbRow: row,

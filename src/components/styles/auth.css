@@ -319,6 +319,20 @@
     cursor: not-allowed;
 }
 
+.auth-form-link {
+    align-self: flex-end;
+    color: #8a8f9a;
+    font-size: var(--type-size-body-sm);
+    text-decoration: none;
+    transition: color 140ms ease;
+}
+
+.auth-form-link:hover:not(:disabled) {
+    color: var(--text-1);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
 /* Primary CTA (white inverted, pill-ish) */
 
 .auth-btn-primary {

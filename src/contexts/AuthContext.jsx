@@ -135,6 +135,46 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
+    const requestPasswordReset = useCallback(async (email) => {
+        setError(null);
+
+        try {
+            const client = assertSupabaseConfig();
+            const redirectTo = typeof window !== 'undefined'
+                ? `${window.location.origin}/reset-password`
+                : undefined;
+            const { error: resetError } = await client.auth.resetPasswordForEmail(email, {
+                redirectTo,
+            });
+
+            if (resetError) throw resetError;
+        } catch (err) {
+            const errorMsg = getAuthErrorMessage(err, 'api.auth.passwordResetFailed');
+            setError(errorMsg);
+            throw err;
+        }
+    }, []);
+
+    const updatePassword = useCallback(async (password) => {
+        setError(null);
+
+        try {
+            const client = assertSupabaseConfig();
+            const { data, error: updateError } = await client.auth.updateUser({
+                password,
+            });
+
+            if (updateError) throw updateError;
+            if (data?.user) setUser(normalizeSupabaseUser(data.user));
+
+            return data;
+        } catch (err) {
+            const errorMsg = getAuthErrorMessage(err, 'api.auth.passwordUpdateFailed');
+            setError(errorMsg);
+            throw err;
+        }
+    }, []);
+
     const logout = useCallback(async () => {
         setError(null);
         const client = assertSupabaseConfig();
@@ -157,9 +197,11 @@ export function AuthProvider({ children }) {
         isAuthenticated: Boolean(session?.access_token && user),
         login,
         loginWithGoogle,
+        requestPasswordReset,
+        updatePassword,
         logout,
         clearError: () => setError(null),
-    }), [error, isLoading, login, loginWithGoogle, logout, session, user]);
+    }), [error, isLoading, login, loginWithGoogle, logout, requestPasswordReset, session, updatePassword, user]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
