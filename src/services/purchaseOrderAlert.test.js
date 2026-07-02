@@ -54,6 +54,15 @@ test('keeps AI suggestions as a separate informational count', () => {
   );
 });
 
+test('does not count AI differences as AI suggestions by themselves', () => {
+  assert.equal(
+    getPurchaseOrderAiSuggestionCount({
+      ai_differences: [{}, {}],
+    }),
+    0
+  );
+});
+
 test('AI suggestions alone do not change a clear comparison to Review', () => {
   assert.equal(
     buildPurchaseOrderAlert(
@@ -76,9 +85,25 @@ test('warnings require review even when no discrepancies exist', () => {
 
 test('informational grouped-line notes do not count as warnings', () => {
   assert.deepEqual(
-    getPurchaseOrderIssueCounts({
-      warnings: [{ type: 'QB_GROUPED_LINES', severity: 'INFO' }],
-    }),
+    getPurchaseOrderIssueCounts(
+      {
+        warnings: [{ type: 'QB_GROUPED_LINES', severity: 'INFO' }],
+      },
+      { warnings_count: 1 }
+    ),
+    { discrepancies: 0, warnings: 0, total: 0 }
+  );
+});
+
+test('prefers reconciled summary counts over stale row counters', () => {
+  assert.deepEqual(
+    getPurchaseOrderIssueCounts(
+      {
+        summary: { discrepancies_count: 0, warnings_count: 0 },
+        discrepancias: [{ type: 'LINE_NOT_FOUND_IN_QB' }],
+      },
+      { discrepancies_count: 2, warnings_count: 1 }
+    ),
     { discrepancies: 0, warnings: 0, total: 0 }
   );
 });

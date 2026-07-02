@@ -6,6 +6,8 @@ const toCount = (value) => {
   return Number.isFinite(count) && count > 0 ? count : 0;
 };
 
+const hasCount = (value) => value !== null && value !== undefined && value !== '';
+
 const getActionableWarnings = (warnings) => (
   Array.isArray(warnings)
     ? warnings.filter((warning) => warning?.type !== 'QB_GROUPED_LINES')
@@ -13,17 +15,17 @@ const getActionableWarnings = (warnings) => (
 );
 
 export function getPurchaseOrderIssueCounts(data = {}, row = {}) {
-  const discrepancies = Math.max(
-    toCount(row.discrepancies_count),
-    toCount(data.summary?.discrepancies_count),
-    Array.isArray(data.discrepancias) ? data.discrepancias.length : 0
-  );
+  const discrepancies = hasCount(data.summary?.discrepancies_count)
+    ? toCount(data.summary.discrepancies_count)
+    : Array.isArray(data.discrepancias)
+      ? data.discrepancias.length
+      : toCount(row.discrepancies_count);
 
-  const warnings = Math.max(
-    toCount(row.warnings_count),
-    toCount(data.summary?.warnings_count),
-    getActionableWarnings(data.warnings).length
-  );
+  const warnings = Array.isArray(data.warnings)
+    ? getActionableWarnings(data.warnings).length
+    : hasCount(data.summary?.warnings_count)
+      ? toCount(data.summary.warnings_count)
+      : toCount(row.warnings_count);
 
   return {
     discrepancies,
@@ -40,8 +42,7 @@ export function getPurchaseOrderAiSuggestionCount(data = {}) {
   return Math.max(
     toCount(data.summary?.ai_suggested_matches_count),
     toCount(data.summary?.ai_price_only_suggested_matches_count),
-    Array.isArray(data.ai_suggested_matches) ? data.ai_suggested_matches.length : 0,
-    Array.isArray(data.ai_differences) ? data.ai_differences.length : 0
+    Array.isArray(data.ai_suggested_matches) ? data.ai_suggested_matches.length : 0
   );
 }
 

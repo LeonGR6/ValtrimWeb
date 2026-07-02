@@ -205,7 +205,7 @@ export default function Login() {
                                 {isLoading ? t('auth.login.signingIn') : t('auth.login.signIn')}
                             </button>
 
-                            <div className="auth-sep">{t('auth.login.or')}</div>
+                            {/* <div className="auth-sep">{t('auth.login.or')}</div>
 
                             <button
                                 type="button"
@@ -232,7 +232,7 @@ export default function Login() {
                                     />
                                 </svg>
                                 {t('auth.login.continueWithGoogle')}
-                            </button>
+                            </button> */}
                         </>
                     )}
                 </form>

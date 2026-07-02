@@ -35,11 +35,21 @@ function SortableHeader({ columnKey, sortConfig, onSort }) {
   );
 }
 
-function IssueSummary({ counts }) {
+function IssueSummary({ counts, totalIssues = 0 }) {
+  const hasSplitCounts = counts?.discrepancies != null || counts?.warnings != null;
   const discrepancies = Number(counts?.discrepancies) || 0;
   const warnings = Number(counts?.warnings) || 0;
+  const fallbackIssues = Number(totalIssues) || 0;
   const discrepancyLabel = `${discrepancies} ${discrepancies === 1 ? 'discrepancy' : 'discrepancies'}`;
   const warningLabel = `${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`;
+
+  if (!hasSplitCounts && fallbackIssues > 0) {
+    return (
+      <span className="order-issue-chip order-issue-chip--legacy" title={`${fallbackIssues} issues`}>
+        Issues {fallbackIssues}
+      </span>
+    );
+  }
 
   if (discrepancies === 0 && warnings === 0) {
     return <span className="order-issues-clear" title="No discrepancies or warnings">0</span>;
@@ -118,7 +128,7 @@ export default function MainTable({ data, sortConfig, onSort, onDelete, deleting
                 <td>{order.requiredDate}</td>
                 <td>{order.vendorShipDate}</td>
                 <td>{order.ackDate}</td>
-                <td><IssueSummary counts={order.issueCounts} /></td>
+                <td><IssueSummary counts={order.issueCounts} totalIssues={order.issues} /></td>
                 <td>{order.total}</td>
                 <td>
                   <button

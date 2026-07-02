@@ -471,6 +471,12 @@
   border-color: #fed7aa;
 }
 
+.order-issue-chip--legacy {
+  color: #334155;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
 .order-issues-clear {
   color: #64748b;
   font-size: 12px;
