@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import Card from '../../components/ui/Card.jsx';
 import SectionHeader from '../../components/ui/SectionHeader.jsx';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

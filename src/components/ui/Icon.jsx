@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 const ICON_PATHS = {
   home: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z',
   workspace: 'M3 5h18v4H3zm0 6h8v10H3zm10 0h8v10h-8z',

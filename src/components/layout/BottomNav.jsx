@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import Icon from '../ui/Icon.jsx';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

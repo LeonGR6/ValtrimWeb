@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import { useState } from 'react';
 import Card from '../ui/Card.jsx';
 import Icon from '../ui/Icon.jsx';

@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 /**
  * Central variant contract for UI primitives.
  * Keep variant options, defaults, and resolvers in a single place.

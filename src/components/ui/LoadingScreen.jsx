@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import BrandLogo from './BrandLogo.jsx';
 
 export default function LoadingScreen({

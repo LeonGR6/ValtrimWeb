@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import Button from './Button.jsx';
 import Icon from './Icon.jsx';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import { CARD_DENSITIES, CARD_SURFACES, UI_DEFAULTS, resolveVariant } from '../../design-system/variants.js';
 
 export default function Card({

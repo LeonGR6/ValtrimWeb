@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 /**
  * BrandLogo
  * Renders the Valtrim logo, choosing the variant that contrasts with the

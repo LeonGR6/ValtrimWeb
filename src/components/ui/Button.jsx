@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import {
   BUTTON_CLASS_BY_APPEARANCE,
   BUTTON_SIZES,

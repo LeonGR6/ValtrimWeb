@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 export default function SectionHeader({ eyebrow, title, aside, titleTag = 'h3' }) {
   const Title = titleTag;
 

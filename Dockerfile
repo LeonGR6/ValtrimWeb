@@ -1,4 +1,3 @@
-# WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 FROM node:22-alpine AS build
 WORKDIR /app
 

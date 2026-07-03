@@ -1,4 +1,3 @@
-// WATERMARK_AUTHOR: Hecho por Gerardo Esparza
 import {
   FIELD_DENSITIES,
   FIELD_LAYOUTS,
