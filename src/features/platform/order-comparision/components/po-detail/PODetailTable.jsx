@@ -29,7 +29,36 @@ const formatMoney = (value) => {
   })}`;
 };
 
-function ActionButton({ line, onEditQuickBooksLine }) {
+const getBulkProgressLabel = (bulkUpdateState) => {
+  if (!bulkUpdateState?.isSaving && bulkUpdateState?.phase !== 'success') {
+    return '';
+  }
+
+  if (bulkUpdateState.phase === 'saving-qb') {
+    const completed = Number(bulkUpdateState.completed || 0);
+    const total = Number(bulkUpdateState.total || 0);
+    const nextIndex = Math.min(completed + 1, total);
+    const lineLabel = bulkUpdateState.currentLine ? ` - QB line ${bulkUpdateState.currentLine}` : '';
+
+    return `Updating ${nextIndex} of ${total}${lineLabel}`;
+  }
+
+  if (bulkUpdateState.phase === 'reconciling') {
+    return 'Reconciling once';
+  }
+
+  if (bulkUpdateState.phase === 'refreshing') {
+    return 'Refreshing PO';
+  }
+
+  if (bulkUpdateState.phase === 'success') {
+    return 'PO updated';
+  }
+
+  return '';
+};
+
+function ActionButton({ disabled = false, line, onEditQuickBooksLine }) {
   if (!line.poLineNumber || !onEditQuickBooksLine) {
     return <span className="pdt-muted">-</span>;
   }
@@ -37,6 +66,7 @@ function ActionButton({ line, onEditQuickBooksLine }) {
   return (
     <button
       className="pdt-action-btn pdt-action-btn--manual"
+      disabled={disabled}
       type="button"
       onClick={() => onEditQuickBooksLine(line)}
     >
@@ -85,6 +115,42 @@ function MoneyCell({ value }) {
     <span>
       {formatMoney(amount)}
     </span>
+  );
+}
+
+function BulkSelectionCell({
+  bulkApplicableLineIdSet,
+  disabled,
+  hasBulkSelection,
+  line,
+  onToggleBulkLine,
+  selectedBulkLineIdSet,
+}) {
+  if (!hasBulkSelection) {
+    return null;
+  }
+
+  const isEligible = bulkApplicableLineIdSet.has(line.id);
+
+  if (!isEligible) {
+    return (
+      <td className="pdt-select-cell">
+        <span className="pdt-muted">-</span>
+      </td>
+    );
+  }
+
+  return (
+    <td className="pdt-select-cell">
+      <input
+        aria-label={`Select QB line ${line.poLineNumber} for rate update`}
+        checked={selectedBulkLineIdSet.has(line.id)}
+        className="pdt-select-checkbox"
+        disabled={disabled}
+        type="checkbox"
+        onChange={() => onToggleBulkLine(line.id)}
+      />
+    </td>
   );
 }
 
@@ -197,15 +263,82 @@ function VarianceCell({ variance }) {
   return <span className="pdt-variance pdt-variance--negative">-${Math.abs(num).toFixed(2)}</span>;
 }
 
-export default function PODetailTable({ lines = [], totalResults = 0, onEditQuickBooksLine }) {
+export default function PODetailTable({
+  bulkApplicableLineIds = [],
+  bulkSelectionDisabled = false,
+  bulkUpdateState = null,
+  lines = [],
+  onApplyBulkRateFixes,
+  onClearBulkSelection,
+  onEditQuickBooksLine,
+  onToggleAllBulkLines,
+  onToggleBulkLine,
+  selectedBulkLineIds = [],
+  totalResults = 0,
+}) {
   const visibleLineCount = lines.filter((line) => !line.isSection).length;
+  const bulkApplicableLineIdSet = new Set(bulkApplicableLineIds);
+  const selectedBulkLineIdSet = new Set(selectedBulkLineIds);
+  const selectedBulkCount = selectedBulkLineIds.filter((lineId) => bulkApplicableLineIdSet.has(lineId)).length;
+  const hasBulkSelection = bulkApplicableLineIds.length > 0 && Boolean(onToggleBulkLine);
+  const isAllBulkSelected = hasBulkSelection && selectedBulkCount === bulkApplicableLineIds.length;
+  const columnCount = hasBulkSelection ? 17 : 16;
+  const bulkProgressLabel = getBulkProgressLabel(bulkUpdateState);
 
   return (
     <div className="pdt-wrapper">
+      {hasBulkSelection && (
+        <div className="pdt-bulk-toolbar">
+          <div className="pdt-bulk-summary">
+            <strong>{selectedBulkCount} selected</strong>
+            <span>{bulkApplicableLineIds.length} price-only AI fixes</span>
+          </div>
+
+          {bulkProgressLabel && (
+            <div className={`pdt-bulk-progress pdt-bulk-progress--${bulkUpdateState.phase}`}>
+              <span className="pdt-bulk-progress-icon" />
+              <span>{bulkProgressLabel}</span>
+            </div>
+          )}
+
+          {bulkUpdateState?.error && (
+            <div className="pdt-bulk-error">{bulkUpdateState.error}</div>
+          )}
+
+          <div className="pdt-bulk-actions">
+            <button
+              className="pdt-bulk-btn pdt-bulk-btn--secondary"
+              disabled={bulkSelectionDisabled}
+              type="button"
+              onClick={onToggleAllBulkLines}
+            >
+              {isAllBulkSelected ? 'Clear all' : 'Select all'}
+            </button>
+            <button
+              className="pdt-bulk-btn pdt-bulk-btn--secondary"
+              disabled={bulkSelectionDisabled || selectedBulkCount === 0}
+              type="button"
+              onClick={onClearBulkSelection}
+            >
+              Clear
+            </button>
+            <button
+              className="pdt-bulk-btn pdt-bulk-btn--primary"
+              disabled={bulkSelectionDisabled || selectedBulkCount === 0}
+              type="button"
+              onClick={onApplyBulkRateFixes}
+            >
+              Apply selected rates
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="pdt-scroll">
         <table className="pdt-table">
           <thead>
             <tr>
+              {hasBulkSelection && <th className="pdt-select-header">Fix</th>}
               <th>Status</th>
               {/* <th>AI Match</th> */}
               <th>Issue Type</th>
@@ -229,61 +362,76 @@ export default function PODetailTable({ lines = [], totalResults = 0, onEditQuic
           <tbody>
             {lines.length === 0 ? (
               <tr>
-                <td colSpan="16" className="pdt-empty">
+                <td colSpan={columnCount} className="pdt-empty">
                   No detail lines available yet.
                 </td>
               </tr>
             ) : (
-              lines.map((line, i) => (
-                line.isSection ? (
-                  <tr key={line.id ?? i} className="pdt-section-row">
-                    <td colSpan="16">
-                      <div className="pdt-section-title">{line.label}</div>
-                      {line.description && (
-                        <div className="pdt-section-description">{line.description}</div>
-                      )}
+              lines.map((line, i) => {
+                if (line.isSection) {
+                  return (
+                    <tr key={line.id ?? i} className="pdt-section-row">
+                      <td colSpan={columnCount}>
+                        <div className="pdt-section-title">{line.label}</div>
+                        {line.description && (
+                          <div className="pdt-section-description">{line.description}</div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                const isBulkSelected = selectedBulkLineIdSet.has(line.id);
+
+                return (
+                  <tr key={line.id ?? i} className={`pdt-row pdt-row--${line.status}${isBulkSelected ? ' pdt-row--bulk-selected' : ''}`}>
+                    <BulkSelectionCell
+                      bulkApplicableLineIdSet={bulkApplicableLineIdSet}
+                      disabled={bulkSelectionDisabled}
+                      hasBulkSelection={hasBulkSelection}
+                      line={line}
+                      onToggleBulkLine={onToggleBulkLine}
+                      selectedBulkLineIdSet={selectedBulkLineIdSet}
+                    />
+                    <td>
+                      <MatchStatusBadge status={line.status} />
                     </td>
-                  </tr>
-                ) : (
-                <tr key={line.id ?? i} className={`pdt-row pdt-row--${line.status}`}>
-                  <td>
-                    <MatchStatusBadge status={line.status} />
-                  </td>
-                  {/* <td>
+                    {/* <td>
                     {line.aiMatch != null ? (
                       <span className="pdt-ai-match">{line.aiMatch}%</span>
                     ) : (
                       <span className="pdt-muted">-</span>
                     )}
                   </td> */}
-                  <td>
-                    <span className="pdt-issue-type">{line.issueType ?? '-'}</span>
-                  </td>
-                  {/* <td><EmptyCell value={line.itemId} /></td> */}
-                  <td><EmptyCell value={line.pdfLineNumber} /></td>
-                  <td><EmptyCell value={line.poLineNumber} /></td>
-                  <td><EmptyCell value={line.confQty} /></td>
-                  <td><EmptyCell value={line.poQty} /></td>
-                  <DescriptionCell line={line} type="pdf" />
-                  <DescriptionCell line={line} type="qb" />
-                  <td><MoneyCell value={line.confUnitCost} /></td>
-                  <td><MoneyCell value={line.poUnitCost} /></td>
-                  <td><MoneyCell value={line.confTotal} /></td>
-                  <td><MoneyCell value={line.poTotal} /></td>
-                  <td>
-                    <VarianceCell variance={line.variance} />
-                  </td>
-                  <td>{line.reqDate ?? '-'}</td>
-                  <td>{line.vendorShipDate ?? '-'}</td>
-                  <td>
-                    <ActionButton
-                      line={line}
-                      onEditQuickBooksLine={onEditQuickBooksLine}
-                    />
-                  </td>
-                </tr>
-                )
-              ))
+                    <td>
+                      <span className="pdt-issue-type">{line.issueType ?? '-'}</span>
+                    </td>
+                    {/* <td><EmptyCell value={line.itemId} /></td> */}
+                    <td><EmptyCell value={line.pdfLineNumber} /></td>
+                    <td><EmptyCell value={line.poLineNumber} /></td>
+                    <td><EmptyCell value={line.confQty} /></td>
+                    <td><EmptyCell value={line.poQty} /></td>
+                    <DescriptionCell line={line} type="pdf" />
+                    <DescriptionCell line={line} type="qb" />
+                    <td><MoneyCell value={line.confUnitCost} /></td>
+                    <td><MoneyCell value={line.poUnitCost} /></td>
+                    <td><MoneyCell value={line.confTotal} /></td>
+                    <td><MoneyCell value={line.poTotal} /></td>
+                    <td>
+                      <VarianceCell variance={line.variance} />
+                    </td>
+                    <td>{line.reqDate ?? '-'}</td>
+                    <td>{line.vendorShipDate ?? '-'}</td>
+                    <td>
+                      <ActionButton
+                        disabled={bulkSelectionDisabled}
+                        line={line}
+                        onEditQuickBooksLine={onEditQuickBooksLine}
+                      />
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

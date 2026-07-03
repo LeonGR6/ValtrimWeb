@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  fetchPurchaseOrderByPoNumber,
   getWebhookAuthHeaders,
   VENDOR_PDF_UPLOAD_WEBHOOK,
 } from '../../../../services/purchaseOrdersApi';
-import { findPoNumber, resolveUploadPayload } from '../utils/uploadVendorResponse';
+import {
+  buildRecoveredUploadPayload,
+  findPoNumber,
+  getPoNumberCandidatesFromFileName,
+  resolveUploadPayload,
+  wasPurchaseOrderRecentlyUpdated,
+} from '../utils/uploadVendorResponse';
 import {
   formatFileSize,
   getFailedUploadIds,
@@ -13,19 +20,93 @@ import {
 } from '../utils/selectedUploadFiles';
 import '../../../../styles/uploadModal.css';
 
+const RECOVERY_LOOKUP_ATTEMPTS = 3;
+const RECOVERY_LOOKUP_DELAY_MS = 800;
+
+const wait = (delayMs) => new Promise((resolve) => {
+  window.setTimeout(resolve, delayMs);
+});
+
+const parseResponseTextJson = (responseText) => {
+  try {
+    return { ok: true, value: JSON.parse(responseText) };
+  } catch {
+    return { ok: false, value: null };
+  }
+};
+
+const createUploadResponseError = (response, responseText) => {
+  const message = response.ok
+    ? 'n8n did not return a valid JSON response.'
+    : `Upload response failed (${response.status}). ${responseText || response.statusText}`;
+  const error = new Error(message);
+
+  error.isUploadResponseError = true;
+  error.responseStatus = response.status;
+  error.responseText = responseText;
+
+  return error;
+};
+
 const readResponsePayload = async (response) => {
   const contentType = response.headers.get('content-type') || '';
 
   if (contentType.includes('application/json')) {
-    return response.json();
+    try {
+      return await response.json();
+    } catch (error) {
+      const uploadError = createUploadResponseError(response, 'Invalid JSON response.');
+      uploadError.cause = error;
+      throw uploadError;
+    }
   }
 
   const responseText = await response.text();
-  throw new Error(
-    response.ok
-      ? 'n8n did not return a valid JSON response.'
-      : `Upload request failed before reaching n8n (${response.status}). ${responseText || response.statusText}`
+  const parsedResponse = parseResponseTextJson(responseText);
+
+  if (parsedResponse.ok) {
+    return parsedResponse.value;
+  }
+
+  throw createUploadResponseError(response, responseText);
+};
+
+const isRecoverableUploadError = (error) => {
+  const responseStatus = Number(error?.responseStatus);
+  const errorText = `${error?.message || ''} ${error?.responseText || ''}`;
+
+  return (
+    (Number.isFinite(responseStatus) && responseStatus >= 500) ||
+    /ROUTER_EXTERNAL_TARGET_ERROR|Failed to fetch|NetworkError|Load failed/i.test(errorText)
   );
+};
+
+const recoverPersistedUpload = async (file, startedAt, originalError) => {
+  if (!isRecoverableUploadError(originalError)) return null;
+
+  const candidates = getPoNumberCandidatesFromFileName(file?.name);
+
+  if (candidates.length === 0) return null;
+
+  for (let attempt = 0; attempt < RECOVERY_LOOKUP_ATTEMPTS; attempt += 1) {
+    for (const candidate of candidates) {
+      try {
+        const purchaseOrder = await fetchPurchaseOrderByPoNumber(candidate);
+
+        if (purchaseOrder && wasPurchaseOrderRecentlyUpdated(purchaseOrder, startedAt)) {
+          return buildRecoveredUploadPayload(purchaseOrder, originalError);
+        }
+      } catch (lookupError) {
+        console.warn(`Could not verify recovered PO ${candidate}.`, lookupError);
+      }
+    }
+
+    if (attempt < RECOVERY_LOOKUP_ATTEMPTS - 1) {
+      await wait(RECOVERY_LOOKUP_DELAY_MS);
+    }
+  }
+
+  return null;
 };
 
 const createUploadResults = (selectedFiles) => (
@@ -160,17 +241,35 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
 
   const processSingleFile = async (file, signal) => {
     const formData = new FormData();
+    const startedAt = Date.now();
     formData.append('file', file);
 
-    const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
-      method: 'POST',
-      headers: await getWebhookAuthHeaders(),
-      body: formData,
-      signal,
-    });
+    try {
+      const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
+        method: 'POST',
+        headers: {
+          ...(await getWebhookAuthHeaders()),
+          Accept: 'application/json',
+        },
+        body: formData,
+        signal,
+      });
 
-    const responseData = await readResponsePayload(response);
-    return resolveUploadPayload(responseData, response.ok);
+      const responseData = await readResponsePayload(response);
+      return resolveUploadPayload(responseData, response.ok);
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw error;
+      }
+
+      const recoveredPayload = await recoverPersistedUpload(file, startedAt, error);
+
+      if (recoveredPayload) {
+        return recoveredPayload;
+      }
+
+      throw error;
+    }
   };
 
   const handleProcessFlow = async ({ retryFailedOnly = false } = {}) => {

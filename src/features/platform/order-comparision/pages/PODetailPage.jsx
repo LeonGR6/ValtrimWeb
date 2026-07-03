@@ -382,6 +382,51 @@ const isOneToOnePriceOnlySuggestedLine = (line, aiDifferences = []) => {
 
 const isActionableWarning = (warning) => warning?.type !== 'QB_GROUPED_LINES';
 
+const buildSuggestedRateFix = (line) => {
+  const currentQty = parseComparableNumber(line.poQty);
+  const currentRate = parseComparableNumber(line.poUnitCost);
+  const nextRate = parseComparableNumber(line.confUnitCost);
+  const qbLineNumber = getSuggestedQbRefs(line)[0] ?? line.poLineNumber;
+
+  if (!qbLineNumber) {
+    return {
+      error: 'A selected AI suggestion is missing a QuickBooks line number.',
+      line,
+    };
+  }
+
+  if (!Number.isFinite(currentQty) || currentQty <= 0) {
+    return {
+      error: `QB line ${qbLineNumber} is missing a valid quantity.`,
+      line,
+    };
+  }
+
+  if (!Number.isFinite(currentRate) || currentRate < 0) {
+    return {
+      error: `QB line ${qbLineNumber} is missing a valid current rate.`,
+      line,
+    };
+  }
+
+  if (!Number.isFinite(nextRate) || nextRate < 0) {
+    return {
+      error: `QB line ${qbLineNumber} is missing a valid suggested rate.`,
+      line,
+    };
+  }
+
+  return {
+    currentQty,
+    currentRate,
+    line,
+    nextQty: currentQty,
+    nextRate,
+    qbDescription: line.poDescription,
+    qbLineNumber,
+  };
+};
+
 const isSuggestedAlreadyMatched = (suggestedLine, matchedDetailLines) => {
   const suggestedPdfRefs = suggestedLine.sourcePdfLineNumbers.map(normalizeLineRef);
   const suggestedQbRefs = suggestedLine.sourceQbLineNumbers.map(normalizeLineRef);
@@ -728,6 +773,15 @@ export default function PODetailPage() {
     isSaving: false,
     phase: 'idle',
   });
+  const [selectedRateFixLineIds, setSelectedRateFixLineIds] = useState([]);
+  const [bulkRateUpdateState, setBulkRateUpdateState] = useState({
+    completed: 0,
+    currentLine: null,
+    error: '',
+    isSaving: false,
+    phase: 'idle',
+    total: 0,
+  });
   const [pdfViewer, setPdfViewer] = useState({
     error: '',
     fileName: '',
@@ -812,6 +866,14 @@ export default function PODetailPage() {
   }, [location.key, location.state, poId]);
 
   const { po, lines, totalResults } = buildDetailFromOrder(order, poId);
+  const priceOnlyRateFixLines = lines.filter((line) => (
+    !line.isSection &&
+    isOneToOnePriceOnlySuggestedLine(line, po.aiDifferences || []) &&
+    !buildSuggestedRateFix(line).error
+  ));
+  const priceOnlyRateFixIds = priceOnlyRateFixLines.map((line) => line.id);
+  const selectedRateFixLineIdSet = new Set(selectedRateFixLineIds);
+  const selectedRateFixLines = priceOnlyRateFixLines.filter((line) => selectedRateFixLineIdSet.has(line.id));
 
   const handleWorkflowStatusChange = async (nextStatus) => {
     setIsUpdatingStatus(true);
@@ -902,6 +964,239 @@ export default function PODetailPage() {
       ...current,
       [field]: value,
     }));
+  };
+
+  const handleToggleRateFixLine = (lineId) => {
+    if (bulkRateUpdateState.isSaving) return;
+
+    setBulkRateUpdateState((current) => ({
+      ...current,
+      error: '',
+    }));
+    setSelectedRateFixLineIds((current) => (
+      current.includes(lineId)
+        ? current.filter((currentLineId) => currentLineId !== lineId)
+        : [...current, lineId]
+    ));
+  };
+
+  const handleToggleAllRateFixLines = () => {
+    if (bulkRateUpdateState.isSaving) return;
+
+    setBulkRateUpdateState((current) => ({
+      ...current,
+      error: '',
+    }));
+    setSelectedRateFixLineIds((current) => {
+      const applicableIds = new Set(priceOnlyRateFixIds);
+      const currentApplicableIds = current.filter((lineId) => applicableIds.has(lineId));
+
+      return currentApplicableIds.length === priceOnlyRateFixIds.length ? [] : priceOnlyRateFixIds;
+    });
+  };
+
+  const handleClearRateFixSelection = () => {
+    if (bulkRateUpdateState.isSaving) return;
+
+    setBulkRateUpdateState((current) => ({
+      ...current,
+      error: '',
+    }));
+    setSelectedRateFixLineIds([]);
+  };
+
+  const handleApplySelectedRateFixes = async () => {
+    if (bulkRateUpdateState.isSaving) return;
+
+    const fixes = selectedRateFixLines.map(buildSuggestedRateFix);
+    const invalidFix = fixes.find((fix) => fix.error);
+
+    if (fixes.length === 0) {
+      const validationMessage = 'Select at least one suggested rate before applying.';
+      setBulkRateUpdateState({
+        completed: 0,
+        currentLine: null,
+        error: validationMessage,
+        isSaving: false,
+        phase: 'idle',
+        total: 0,
+      });
+      addToast({
+        tone: 'error',
+        title: 'No rates selected',
+        message: validationMessage,
+      });
+      return;
+    }
+
+    if (invalidFix) {
+      setBulkRateUpdateState({
+        completed: 0,
+        currentLine: null,
+        error: invalidFix.error,
+        isSaving: false,
+        phase: 'idle',
+        total: fixes.length,
+      });
+      addToast({
+        tone: 'error',
+        title: 'Invalid suggested rate',
+        message: invalidFix.error,
+      });
+      return;
+    }
+
+    setBulkRateUpdateState({
+      completed: 0,
+      currentLine: fixes[0]?.qbLineNumber ?? null,
+      error: '',
+      isSaving: true,
+      phase: 'saving-qb',
+      total: fixes.length,
+    });
+
+    let failureStage = 'quickbooks';
+    let completed = 0;
+
+    try {
+      for (const fix of fixes) {
+        setBulkRateUpdateState({
+          completed,
+          currentLine: fix.qbLineNumber,
+          error: '',
+          isSaving: true,
+          phase: 'saving-qb',
+          total: fixes.length,
+        });
+
+        await updateQuickBooksPurchaseOrderLine({
+          poNumber: poId,
+          qbLineNumber: fix.qbLineNumber,
+          currentQty: fix.currentQty,
+          currentRate: fix.currentRate,
+          nextQty: fix.nextQty,
+          nextRate: fix.nextRate,
+          qbDescription: fix.qbDescription,
+        });
+
+        completed += 1;
+        setBulkRateUpdateState({
+          completed,
+          currentLine: fix.qbLineNumber,
+          error: '',
+          isSaving: true,
+          phase: 'saving-qb',
+          total: fixes.length,
+        });
+      }
+
+      addToast({
+        tone: 'success',
+        title: 'QuickBooks updated',
+        message: `${fixes.length} suggested rate${fixes.length === 1 ? '' : 's'} applied to PO ${poId}.`,
+      });
+
+      setBulkRateUpdateState({
+        completed,
+        currentLine: null,
+        error: '',
+        isSaving: true,
+        phase: 'reconciling',
+        total: fixes.length,
+      });
+
+      failureStage = 'comparison';
+
+      let reconciliationResult;
+      try {
+        reconciliationResult = await reconcilePurchaseOrderWithCurrentPdf(poId);
+      } catch (error) {
+        throw new Error(
+          `QuickBooks was updated, but reconciliation failed: ${error.message || 'Could not rerun the comparison.'}`,
+          { cause: error }
+        );
+      }
+
+      addToast({
+        tone: 'success',
+        title: 'Comparison completed',
+        message: `PO ${poId} was compared again using its current PDF.`,
+      });
+      getPersistenceNotifications(reconciliationResult).forEach(addToast);
+
+      setBulkRateUpdateState({
+        completed,
+        currentLine: null,
+        error: '',
+        isSaving: true,
+        phase: 'refreshing',
+        total: fixes.length,
+      });
+
+      failureStage = 'refresh';
+
+      await refreshPurchaseOrderDetails();
+
+      setSelectedRateFixLineIds([]);
+      setBulkRateUpdateState({
+        completed,
+        currentLine: null,
+        error: '',
+        isSaving: true,
+        phase: 'success',
+        total: fixes.length,
+      });
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 900);
+      });
+
+      setBulkRateUpdateState({
+        completed: 0,
+        currentLine: null,
+        error: '',
+        isSaving: false,
+        phase: 'idle',
+        total: 0,
+      });
+    } catch (error) {
+      console.error('Error applying suggested QuickBooks rates:', error);
+
+      const failureTitle = {
+        quickbooks: 'QuickBooks update failed',
+        comparison: 'Comparison failed',
+        refresh: 'Data refresh failed',
+      }[failureStage];
+      const baseMessage = error.message || 'The operation could not be completed.';
+      const errorMessage = completed > 0 && failureStage === 'quickbooks'
+        ? `${completed} of ${fixes.length} QuickBooks lines were updated before this stopped. ${baseMessage}`
+        : baseMessage;
+
+      addToast({
+        tone: 'error',
+        title: failureTitle,
+        message: errorMessage,
+      });
+
+      if (completed > 0 || isStaleQuickBooksError(error)) {
+        try {
+          await refreshPurchaseOrderDetails();
+        } catch (refreshError) {
+          console.error('Error refreshing purchase order after bulk rate update:', refreshError);
+        }
+      }
+
+      setBulkRateUpdateState({
+        completed,
+        currentLine: null,
+        error: isStaleQuickBooksError(error)
+          ? `${baseMessage} The latest PO data was refreshed. Review the selected rates and apply again.`
+          : errorMessage,
+        isSaving: false,
+        phase: 'idle',
+        total: fixes.length,
+      });
+    }
   };
 
   const handleSaveQbLine = async () => {
@@ -1109,9 +1404,17 @@ export default function PODetailPage() {
             onViewPdf={handleViewPdf}
           />
           <PODetailTable
+            bulkApplicableLineIds={priceOnlyRateFixIds}
+            bulkSelectionDisabled={bulkRateUpdateState.isSaving}
+            bulkUpdateState={bulkRateUpdateState}
             lines={lines}
-            totalResults={totalResults}
+            onApplyBulkRateFixes={handleApplySelectedRateFixes}
+            onClearBulkSelection={handleClearRateFixSelection}
             onEditQuickBooksLine={handleEditQbLine}
+            onToggleAllBulkLines={handleToggleAllRateFixLines}
+            onToggleBulkLine={handleToggleRateFixLine}
+            selectedBulkLineIds={selectedRateFixLineIds}
+            totalResults={totalResults}
           />
         </>
       ) : (
