@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
 import PODetailHeader from '../components/po-detail/PODetailHeader.jsx';
+import PONotesPanel from '../components/po-detail/PONotesPanel.jsx';
 import PODetailTable from '../components/po-detail/PODetailTable.jsx';
 import { getPersistenceNotifications } from '../utils/reconciliationNotifications.js';
 import {
@@ -11,6 +12,7 @@ import {
   formatWorkflowStatus,
   reconcilePurchaseOrderWithCurrentPdf,
   updateQuickBooksPurchaseOrderLine,
+  updatePurchaseOrderNote,
   updatePurchaseOrderWorkflowStatus,
 } from '../../../../services/purchaseOrdersApi.js';
 
@@ -762,6 +764,12 @@ export default function PODetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [order, setOrder] = useState(location.state?.order || null);
+  const [noteDraft, setNoteDraft] = useState(location.state?.order?.note || '');
+  const [noteSaveState, setNoteSaveState] = useState({
+    error: '',
+    isSaving: false,
+    phase: 'idle',
+  });
   const [isLoading, setIsLoading] = useState(!location.state?.order);
   const [loadError, setLoadError] = useState('');
   const [statusUpdateError, setStatusUpdateError] = useState('');
@@ -789,8 +797,10 @@ export default function PODetailPage() {
     isOpen: false,
     url: '',
   });
+  const persistedNote = order?.note || '';
 
   const refreshPurchaseOrderDetails = useCallback(async () => {
+    const previousNote = persistedNote;
     const purchaseOrder = await fetchPurchaseOrderByPoNumber(poId);
 
     if (!purchaseOrder) {
@@ -798,10 +808,13 @@ export default function PODetailPage() {
     }
 
     setOrder(purchaseOrder);
+    setNoteDraft((currentDraft) => (
+      currentDraft === previousNote ? purchaseOrder.note || '' : currentDraft
+    ));
     setLoadError('');
 
     return purchaseOrder;
-  }, [poId]);
+  }, [persistedNote, poId]);
 
   const syncEditorWithOrder = useCallback((updatedOrder, sourceLine) => {
     if (!updatedOrder || !sourceLine?.poLineNumber) return;
@@ -829,8 +842,15 @@ export default function PODetailPage() {
     let ignore = false;
 
     const loadOrder = async () => {
+      setNoteSaveState({
+        error: '',
+        isSaving: false,
+        phase: 'idle',
+      });
+
       if (location.state?.order) {
         setOrder(location.state.order);
+        setNoteDraft(location.state.order.note || '');
       }
 
       setIsLoading(!location.state?.order);
@@ -841,6 +861,7 @@ export default function PODetailPage() {
 
         if (!ignore) {
           setOrder(purchaseOrder);
+          setNoteDraft(purchaseOrder?.note || '');
           if (!purchaseOrder) {
             setLoadError(`PO ${poId} was not found.`);
           }
@@ -875,6 +896,78 @@ export default function PODetailPage() {
   const selectedRateFixLineIdSet = new Set(selectedRateFixLineIds);
   const selectedRateFixLines = priceOnlyRateFixLines.filter((line) => selectedRateFixLineIdSet.has(line.id));
 
+  const handleNoteDraftChange = (nextNote) => {
+    setNoteDraft(nextNote);
+    setNoteSaveState((current) => ({
+      ...current,
+      error: '',
+      phase: current.isSaving ? current.phase : 'idle',
+    }));
+  };
+
+  const handleClearNote = () => {
+    if (noteSaveState.isSaving) return;
+
+    setNoteDraft('');
+    setNoteSaveState({
+      error: '',
+      isSaving: false,
+      phase: 'idle',
+    });
+  };
+
+  const handleResetNote = () => {
+    if (noteSaveState.isSaving) return;
+
+    setNoteDraft(persistedNote);
+    setNoteSaveState({
+      error: '',
+      isSaving: false,
+      phase: 'idle',
+    });
+  };
+
+  const handleSaveNote = async () => {
+    if (noteSaveState.isSaving || noteDraft === persistedNote) return;
+
+    setNoteSaveState({
+      error: '',
+      isSaving: true,
+      phase: 'saving',
+    });
+
+    try {
+      const updatedOrder = await updatePurchaseOrderNote(poId, noteDraft);
+      const updatedNote = updatedOrder.note || '';
+
+      setOrder(updatedOrder);
+      setNoteDraft(updatedNote);
+      setNoteSaveState({
+        error: '',
+        isSaving: false,
+        phase: 'saved',
+      });
+      addToast({
+        tone: 'success',
+        title: updatedNote ? 'Note saved' : 'Note cleared',
+        message: `PO ${poId} note was updated.`,
+      });
+    } catch (error) {
+      console.error('Error saving purchase order note:', error);
+
+      setNoteSaveState({
+        error: error.message || 'Could not save the note.',
+        isSaving: false,
+        phase: 'idle',
+      });
+      addToast({
+        tone: 'error',
+        title: 'Note not saved',
+        message: error.message || 'Could not save the purchase order note.',
+      });
+    }
+  };
+
   const handleWorkflowStatusChange = async (nextStatus) => {
     setIsUpdatingStatus(true);
     setStatusUpdateError('');
@@ -883,7 +976,12 @@ export default function PODetailPage() {
       const updatedOrder = await updatePurchaseOrderWorkflowStatus(poId, nextStatus);
 
       if (updatedOrder) {
+        const updatedNote = updatedOrder.note || '';
+
         setOrder(updatedOrder);
+        setNoteDraft((currentDraft) => (
+          currentDraft === persistedNote ? updatedNote : currentDraft
+        ));
       }
     } catch (error) {
       console.error('Error updating workflow status:', error);
@@ -1402,6 +1500,17 @@ export default function PODetailPage() {
             isUpdatingStatus={isUpdatingStatus}
             onWorkflowStatusChange={handleWorkflowStatusChange}
             onViewPdf={handleViewPdf}
+          />
+          <PONotesPanel
+            isSaving={noteSaveState.isSaving}
+            persistedValue={persistedNote}
+            saveState={noteSaveState}
+            updatedAt={order.noteUpdatedAt}
+            value={noteDraft}
+            onChange={handleNoteDraftChange}
+            onClear={handleClearNote}
+            onReset={handleResetNote}
+            onSave={handleSaveNote}
           />
           <PODetailTable
             bulkApplicableLineIds={priceOnlyRateFixIds}

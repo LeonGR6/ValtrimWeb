@@ -236,6 +236,9 @@ export const normalizePurchaseOrderRow = (row) => {
     ackDate: formatDisplayDate(row.order_date) || 'PENDING',
     updatedAt: formatDisplayDateTime(row.updated_at),
     updatedAtRaw: row.updated_at ?? '',
+    note: row.internal_note ?? '',
+    noteUpdatedAt: formatDisplayDateTime(row.note_updated_at),
+    noteUpdatedAtRaw: row.note_updated_at ?? '',
     total: formatCurrency(row.total_pdf ?? row.total_qb),
     issues: String(issueCounts.total),
     issueCounts,
@@ -299,6 +302,29 @@ export const updatePurchaseOrderWorkflowStatus = async (poNumber, workflowStatus
   });
 
   return rows[0] ? normalizePurchaseOrderRow(rows[0]) : null;
+};
+
+export const updatePurchaseOrderNote = async (poNumber, note) => {
+  const filter = encodeURIComponent(String(poNumber));
+  const now = new Date().toISOString();
+  const normalizedNote = String(note ?? '').trim();
+  const rows = await requestSupabase(`purchase_orders?po_number=eq.${filter}&select=*`, {
+    method: 'PATCH',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({
+      internal_note: normalizedNote || null,
+      note_updated_at: now,
+      updated_at: now,
+    }),
+  });
+
+  if (!rows[0]) {
+    throw new Error(`Could not save the note for PO ${poNumber}.`);
+  }
+
+  return normalizePurchaseOrderRow(rows[0]);
 };
 
 const readWebhookResponse = async (response, fallbackError) => {
