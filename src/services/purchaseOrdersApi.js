@@ -5,8 +5,26 @@ import {
   getPurchaseOrderIssueCounts,
 } from './purchaseOrderAlert.js';
 
-const QB_LINE_UPDATE_WEBHOOK = '/webhook/update-qb-po-line';
-export const VENDOR_PDF_UPLOAD_WEBHOOK = '/webhook/upload-pdf-vendor';
+const N8N_WEBHOOK_BASE_URL = (
+  import.meta.env.VITE_N8N_WEBHOOK_BASE_URL || 'https://n8n.valtrim.cloud'
+).replace(/\/+$/, '');
+
+const getWebhookUrl = (configuredUrl, path) => {
+  if (typeof configuredUrl === 'string' && configuredUrl.trim()) {
+    return configuredUrl.trim();
+  }
+
+  return `${N8N_WEBHOOK_BASE_URL}${path}`;
+};
+
+const QB_LINE_UPDATE_WEBHOOK = getWebhookUrl(
+  import.meta.env.VITE_QB_LINE_UPDATE_WEBHOOK,
+  '/webhook/update-qb-po-line'
+);
+export const VENDOR_PDF_UPLOAD_WEBHOOK = getWebhookUrl(
+  import.meta.env.VITE_VENDOR_PDF_UPLOAD_WEBHOOK,
+  '/webhook/upload-pdf-vendor'
+);
 
 const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
