@@ -88,6 +88,21 @@ export const formatDisplayDate = (value) => {
   return raw;
 };
 
+export const formatDisplayDateTime = (value) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date);
+};
+
 export const formatWorkflowStatus = (status) => {
   if (!status) return 'Draft';
 
@@ -219,6 +234,8 @@ export const normalizePurchaseOrderRow = (row) => {
     requiredDate: formatDisplayDate(row.required_date),
     vendorShipDate: formatDisplayDate(row.ship_date) || 'PENDING',
     ackDate: formatDisplayDate(row.order_date) || 'PENDING',
+    updatedAt: formatDisplayDateTime(row.updated_at),
+    updatedAtRaw: row.updated_at ?? '',
     total: formatCurrency(row.total_pdf ?? row.total_qb),
     issues: String(issueCounts.total),
     issueCounts,

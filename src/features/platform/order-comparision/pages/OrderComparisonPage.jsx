@@ -43,6 +43,10 @@ const parseDateValue = (value) => {
 const parseMoneyValue = (value) => Number(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;
 
 const getSortableValue = (order, key) => {
+  if (key === 'updatedAt') {
+    return Date.parse(order.updatedAtRaw || order.updatedAt) || 0;
+  }
+
   if (dateSortKeys.includes(key)) {
     return parseDateValue(order[key]);
   }

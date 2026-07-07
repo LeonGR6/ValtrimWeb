@@ -154,9 +154,11 @@
 .orders-table th:nth-child(7),
 .orders-table th:nth-child(8),
 .orders-table th:nth-child(9),
+.orders-table th:nth-child(10),
 .orders-table td:nth-child(7),
 .orders-table td:nth-child(8),
-.orders-table td:nth-child(9) {
+.orders-table td:nth-child(9),
+.orders-table td:nth-child(10) {
   white-space: nowrap;
   min-width: 128px;
 }

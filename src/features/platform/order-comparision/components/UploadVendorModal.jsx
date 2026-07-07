@@ -121,6 +121,8 @@ const createUploadResults = (selectedFiles) => (
 const getResultLabel = (result) => {
   if (result.status === 'success' && result.warning) return 'Warning';
   if (result.status === 'success') return 'OK';
+  if (result.status === 'skipped') return 'Kept';
+  if (result.status === 'waiting') return 'Decision';
   if (result.status === 'error') return 'Error';
   if (result.status === 'processing') return 'Processing';
   if (result.status === 'canceled') return 'Canceled';
@@ -128,10 +130,24 @@ const getResultLabel = (result) => {
   return 'Queued';
 };
 
+const isExistingPoDecisionPayload = (payload) => (
+  payload?.status === 'PO_ALREADY_EXISTS' ||
+  (payload?.needs_user_decision === true && Boolean(findPoNumber(payload)))
+);
+
 const getResultMessage = (result) => {
   if (result.status === 'success') {
     const poNumber = findPoNumber(result.payload);
     return poNumber ? `PO ${poNumber}` : 'Saved successfully';
+  }
+
+  if (result.status === 'skipped') {
+    const poNumber = findPoNumber(result.payload);
+    return poNumber ? `PO ${poNumber} kept unchanged` : 'Existing record kept unchanged';
+  }
+
+  if (result.status === 'waiting') {
+    return 'Waiting for your decision.';
   }
 
   if (result.status === 'error') {
@@ -153,12 +169,16 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [duplicateDecision, setDuplicateDecision] = useState(null);
   const activeUploadController = useRef(null);
   const cancelRequested = useRef(false);
+  const duplicateDecisionResolver = useRef(null);
 
   useEffect(() => () => {
     cancelRequested.current = true;
     activeUploadController.current?.abort();
+    duplicateDecisionResolver.current?.('cancel');
+    duplicateDecisionResolver.current = null;
   }, []);
 
   const setSelectedFiles = (nextFiles) => {
@@ -186,6 +206,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
     setResults(createUploadResults(selection.files));
     setSavedData(null);
     setErrorMessage(messages.join(' '));
+    setDuplicateDecision(null);
   };
 
   const handleRemoveFile = (fileId) => {
@@ -239,10 +260,14 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
     setSelectedFiles(event.dataTransfer.files);
   };
 
-  const processSingleFile = async (file, signal) => {
+  const processSingleFile = async (file, signal, { forceReconcile = false } = {}) => {
     const formData = new FormData();
     const startedAt = Date.now();
     formData.append('file', file);
+
+    if (forceReconcile) {
+      formData.append('force_reconcile', 'true');
+    }
 
     try {
       const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
@@ -272,6 +297,20 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
     }
   };
 
+  const requestExistingPoDecision = (decisionContext) => new Promise((resolve) => {
+    duplicateDecisionResolver.current = resolve;
+    setDuplicateDecision(decisionContext);
+    setStatus('duplicateDecision');
+  });
+
+  const handleDuplicateDecision = (decision) => {
+    const resolve = duplicateDecisionResolver.current;
+
+    duplicateDecisionResolver.current = null;
+    setDuplicateDecision(null);
+    resolve?.(decision);
+  };
+
   const handleProcessFlow = async ({ retryFailedOnly = false } = {}) => {
     if (files.length === 0) return;
 
@@ -286,6 +325,7 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
     setErrorMessage('');
     setSavedData(null);
     setIsCanceling(false);
+    setDuplicateDecision(null);
     cancelRequested.current = false;
 
     const existingResults = retryFailedOnly ? results : createUploadResults(files);
@@ -313,7 +353,52 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
       activeUploadController.current = controller;
 
       try {
-        const payload = await processSingleFile(file, controller.signal);
+        let payload = await processSingleFile(file, controller.signal);
+
+        if (isExistingPoDecisionPayload(payload)) {
+          batchResults[index] = {
+            ...batchResults[index],
+            status: 'waiting',
+            payload,
+          };
+          setResults([...batchResults]);
+
+          const decision = await requestExistingPoDecision({
+            fileName: file.name,
+            fileSize: formatFileSize(file.size),
+            payload,
+          });
+
+          if (decision === 'cancel') {
+            cancelRequested.current = true;
+            batchResults[index] = {
+              ...batchResults[index],
+              status: 'canceled',
+            };
+            setResults([...batchResults]);
+            break;
+          }
+
+          if (decision === 'keep') {
+            setStatus('processing');
+            batchResults[index] = {
+              ...batchResults[index],
+              status: 'skipped',
+              payload,
+            };
+            setResults([...batchResults]);
+            continue;
+          }
+
+          setStatus('processing');
+          batchResults[index] = {
+            ...batchResults[index],
+            status: 'processing',
+            warning: '',
+          };
+          setResults([...batchResults]);
+          payload = await processSingleFile(file, controller.signal, { forceReconcile: true });
+        }
 
         batchResults[index] = {
           ...batchResults[index],
@@ -354,16 +439,17 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
     }
 
     const successfulResults = batchResults.filter((result) => result.status === 'success');
+    const skippedResults = batchResults.filter((result) => result.status === 'skipped');
 
     if (cancelRequested.current) {
       setErrorMessage('Processing was canceled. PDFs that had not started were not sent.');
-    } else if (successfulResults.length === 0) {
+    } else if (successfulResults.length === 0 && skippedResults.length === 0) {
       setErrorMessage('No PDF was processed successfully.');
     }
 
     setSavedData(
       files.length === 1
-        ? successfulResults[0]?.payload || batchResults[0]
+        ? successfulResults[0]?.payload || skippedResults[0]?.payload || batchResults[0]
         : { isBatch: true, results: batchResults }
     );
     setIsCanceling(false);
@@ -388,17 +474,20 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
   const successfulCount = results.filter((result) => result.status === 'success').length;
   const failedCount = results.filter((result) => result.status === 'error').length;
   const canceledCount = results.filter((result) => result.status === 'canceled').length;
+  const skippedCount = results.filter((result) => result.status === 'skipped').length;
   const warningCount = results.filter((result) => result.status === 'success' && result.warning).length;
-  const processedCount = successfulCount + failedCount + canceledCount;
+  const processedCount = successfulCount + failedCount + canceledCount + skippedCount;
   const hasSelectedFiles = files.length > 0;
   const isSingleSuccessfulUpload = files.length === 1 && successfulCount === 1;
+  const duplicatePoNumber = findPoNumber(duplicateDecision?.payload);
+  const duplicateExisting = duplicateDecision?.payload?.existing || {};
 
   return (
     <div className="modal-overlay">
       <div className="modal-content">
         <button
           className="modal-close-btn"
-          disabled={status === 'processing'}
+          disabled={status === 'processing' || status === 'duplicateDecision'}
           onClick={onClose}
         >
           &times;
@@ -473,6 +562,66 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
           </div>
         )}
 
+        {status === 'duplicateDecision' && duplicateDecision && (
+          <div className="modal-step">
+            <div className="warning-icon duplicate-decision-icon">!</div>
+            <h3>PO Already Exists</h3>
+            <p>
+              {duplicateDecision.fileName} matches PO {duplicatePoNumber || 'already saved'}.
+              Choose whether to keep the current record or reconcile the PDF again.
+            </p>
+
+            <div className="duplicate-decision-card">
+              <div>
+                <span>PO Number</span>
+                <strong>{duplicatePoNumber || duplicateExisting.po_number || 'Existing PO'}</strong>
+              </div>
+              {duplicateExisting.supplier && (
+                <div>
+                  <span>Vendor</span>
+                  <strong>{duplicateExisting.supplier}</strong>
+                </div>
+              )}
+              {duplicateExisting.job && (
+                <div>
+                  <span>Job</span>
+                  <strong>{duplicateExisting.job}</strong>
+                </div>
+              )}
+              {duplicateExisting.workflow_status && (
+                <div>
+                  <span>Status</span>
+                  <strong>{duplicateExisting.workflow_status}</strong>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-actions duplicate-decision-actions">
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={() => handleDuplicateDecision('cancel')}
+              >
+                Cancel batch
+              </button>
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={() => handleDuplicateDecision('keep')}
+              >
+                Keep existing
+              </button>
+              <button
+                className="btn-primary"
+                type="button"
+                onClick={() => handleDuplicateDecision('reconcile')}
+              >
+                Reconcile again
+              </button>
+            </div>
+          </div>
+        )}
+
         {status === 'processing' && (
           <div className="modal-step text-center">
             <div className="spinner"></div>
@@ -509,12 +658,21 @@ export default function UploadVendorModal({ onClose, onUploadSuccess }) {
 
         {status === 'complete' && (
           <div className="modal-step text-center">
-            <div className={failedCount > 0 || warningCount > 0 ? 'warning-icon' : 'success-icon'}>
-              {failedCount > 0 || warningCount > 0 ? '!' : 'OK'}
+            <div className={failedCount > 0 || warningCount > 0 || skippedCount > 0 ? 'warning-icon' : 'success-icon'}>
+              {failedCount > 0 || warningCount > 0 || skippedCount > 0 ? '!' : 'OK'}
             </div>
-            <h3>{files.length > 1 ? 'Batch Complete' : successfulCount ? 'Purchase Order Saved' : 'PDF Not Saved'}</h3>
+            <h3>
+              {files.length > 1
+                ? 'Batch Complete'
+                : successfulCount
+                  ? 'Purchase Order Saved'
+                  : skippedCount
+                    ? 'Existing PO Kept'
+                    : 'PDF Not Saved'}
+            </h3>
             <p>
               {successfulCount} successful, {failedCount} failed.
+              {skippedCount > 0 ? ` ${skippedCount} kept unchanged.` : ''}
               {canceledCount > 0 ? ` ${canceledCount} canceled.` : ''}
               {warningCount > 0 ? ` ${warningCount} saved with a warning.` : ''}
               {errorMessage ? ` ${errorMessage}` : ''}

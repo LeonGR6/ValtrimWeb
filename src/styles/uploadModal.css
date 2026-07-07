@@ -257,9 +257,19 @@
   color: #2563eb;
 }
 
+.batch-result-row--waiting .batch-result-status {
+  background-color: #fff7ed;
+  color: #f97316;
+}
+
 .batch-result-row--success .batch-result-status {
   background-color: #ecfdf5;
   color: #059669;
+}
+
+.batch-result-row--skipped .batch-result-status {
+  background-color: #f8fafc;
+  color: #475569;
 }
 
 .batch-result-row--warning {
@@ -363,6 +373,50 @@
   align-items: center;
   justify-content: center;
   margin: 0 auto 1.5rem auto;
+}
+
+.duplicate-decision-icon {
+  margin-bottom: 1rem;
+}
+
+.duplicate-decision-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: grid;
+  gap: 0;
+  margin: 0 0 1.5rem;
+  overflow: hidden;
+}
+
+.duplicate-decision-card div {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.75rem 0.9rem;
+}
+
+.duplicate-decision-card div + div {
+  border-top: 1px solid #e2e8f0;
+}
+
+.duplicate-decision-card span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.duplicate-decision-card strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.duplicate-decision-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 /* KEYFRAMES */
