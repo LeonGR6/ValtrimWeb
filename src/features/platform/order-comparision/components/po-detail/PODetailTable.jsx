@@ -118,19 +118,19 @@ function MoneyCell({ value }) {
   );
 }
 
-function BulkSelectionCell({
-  bulkApplicableLineIdSet,
+function IssueSelectionCell({
   disabled,
-  hasBulkSelection,
+  hasIssueSelection,
   line,
-  onToggleBulkLine,
-  selectedBulkLineIdSet,
+  onToggleIssueLine,
+  reportableIssueLineIdSet,
+  selectedIssueLineIdSet,
 }) {
-  if (!hasBulkSelection) {
+  if (!hasIssueSelection) {
     return null;
   }
 
-  const isEligible = bulkApplicableLineIdSet.has(line.id);
+  const isEligible = reportableIssueLineIdSet.has(line.id);
 
   if (!isEligible) {
     return (
@@ -143,12 +143,12 @@ function BulkSelectionCell({
   return (
     <td className="pdt-select-cell">
       <input
-        aria-label={`Select QB line ${line.poLineNumber} for rate update`}
-        checked={selectedBulkLineIdSet.has(line.id)}
+        aria-label={`Select issue ${line.issueType || line.status}`}
+        checked={selectedIssueLineIdSet.has(line.id)}
         className="pdt-select-checkbox"
         disabled={disabled}
         type="checkbox"
-        onChange={() => onToggleBulkLine(line.id)}
+        onChange={() => onToggleIssueLine(line.id)}
       />
     </td>
   );
@@ -241,7 +241,7 @@ function DescriptionCell({ line, type }) {
       )}
       {type === 'pdf' && line.sourceMessage && (
         <div className="pdt-ai-reason">
-          <strong>{line.status === 'suggested' ? 'AI reason' : 'Note'}:</strong> {line.sourceMessage}
+          <strong>{line.status === 'suggested' || line.aiApplied ? 'AI reason' : 'Note'}:</strong> {line.sourceMessage}
         </div>
       )}
       {type === 'qb' && line.matchType && (
@@ -267,31 +267,41 @@ export default function PODetailTable({
   bulkApplicableLineIds = [],
   bulkSelectionDisabled = false,
   bulkUpdateState = null,
+  issueSelectionDisabled = false,
   lines = [],
   onApplyBulkRateFixes,
-  onClearBulkSelection,
+  onClearIssueSelection,
   onEditQuickBooksLine,
-  onToggleAllBulkLines,
-  onToggleBulkLine,
-  selectedBulkLineIds = [],
+  onOpenIssueEmailComposer,
+  onToggleAllIssueLines,
+  onToggleIssueLine,
+  reportableIssueLineIds = [],
+  selectedIssueLineIds = [],
   totalResults = 0,
 }) {
   const visibleLineCount = lines.filter((line) => !line.isSection).length;
   const bulkApplicableLineIdSet = new Set(bulkApplicableLineIds);
-  const selectedBulkLineIdSet = new Set(selectedBulkLineIds);
-  const selectedBulkCount = selectedBulkLineIds.filter((lineId) => bulkApplicableLineIdSet.has(lineId)).length;
-  const hasBulkSelection = bulkApplicableLineIds.length > 0 && Boolean(onToggleBulkLine);
-  const isAllBulkSelected = hasBulkSelection && selectedBulkCount === bulkApplicableLineIds.length;
-  const columnCount = hasBulkSelection ? 17 : 16;
+  const reportableIssueLineIdSet = new Set(reportableIssueLineIds);
+  const selectedIssueLineIdSet = new Set(selectedIssueLineIds);
+  const selectedRateFixCount = selectedIssueLineIds.filter((lineId) => bulkApplicableLineIdSet.has(lineId)).length;
+  const selectedIssueCount = selectedIssueLineIds.filter((lineId) => reportableIssueLineIdSet.has(lineId)).length;
+  const hasIssueSelection = reportableIssueLineIds.length > 0 && Boolean(onToggleIssueLine);
+  const hasBulkAction = bulkApplicableLineIds.length > 0 && Boolean(onApplyBulkRateFixes);
+  const isAllIssuesSelected = hasIssueSelection && selectedIssueCount === reportableIssueLineIds.length;
+  const columnCount = 16 + (hasIssueSelection ? 1 : 0);
   const bulkProgressLabel = getBulkProgressLabel(bulkUpdateState);
+  const selectionDisabled = issueSelectionDisabled || bulkSelectionDisabled;
 
   return (
     <div className="pdt-wrapper">
-      {hasBulkSelection && (
+      {hasIssueSelection && (
         <div className="pdt-bulk-toolbar">
           <div className="pdt-bulk-summary">
-            <strong>{selectedBulkCount} selected</strong>
-            <span>{bulkApplicableLineIds.length} price-only AI fixes</span>
+            <strong>{selectedIssueCount} selected</strong>
+            <span>{reportableIssueLineIds.length} vendor issues</span>
+            {hasBulkAction && (
+              <span>{selectedRateFixCount} selected rate fixes</span>
+            )}
           </div>
 
           {bulkProgressLabel && (
@@ -308,28 +318,38 @@ export default function PODetailTable({
           <div className="pdt-bulk-actions">
             <button
               className="pdt-bulk-btn pdt-bulk-btn--secondary"
-              disabled={bulkSelectionDisabled}
+              disabled={selectionDisabled}
               type="button"
-              onClick={onToggleAllBulkLines}
+              onClick={onToggleAllIssueLines}
             >
-              {isAllBulkSelected ? 'Clear all' : 'Select all'}
+              {isAllIssuesSelected ? 'Clear all' : 'Select all'}
             </button>
             <button
               className="pdt-bulk-btn pdt-bulk-btn--secondary"
-              disabled={bulkSelectionDisabled || selectedBulkCount === 0}
+              disabled={selectionDisabled || selectedIssueCount === 0}
               type="button"
-              onClick={onClearBulkSelection}
+              onClick={onClearIssueSelection}
             >
               Clear
             </button>
             <button
               className="pdt-bulk-btn pdt-bulk-btn--primary"
-              disabled={bulkSelectionDisabled || selectedBulkCount === 0}
+              disabled={selectionDisabled || selectedIssueCount === 0}
               type="button"
-              onClick={onApplyBulkRateFixes}
+              onClick={onOpenIssueEmailComposer}
             >
-              Apply selected rates
+              Email selected issues
             </button>
+            {hasBulkAction && (
+              <button
+                className="pdt-bulk-btn pdt-bulk-btn--primary"
+                disabled={selectionDisabled || selectedRateFixCount === 0}
+                type="button"
+                onClick={onApplyBulkRateFixes}
+              >
+                Apply selected rates
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -338,7 +358,7 @@ export default function PODetailTable({
         <table className="pdt-table">
           <thead>
             <tr>
-              {hasBulkSelection && <th className="pdt-select-header">Fix</th>}
+              {hasIssueSelection && <th className="pdt-select-header">Select</th>}
               <th>Status</th>
               {/* <th>AI Match</th> */}
               <th>Issue Type</th>
@@ -381,17 +401,20 @@ export default function PODetailTable({
                   );
                 }
 
-                const isBulkSelected = selectedBulkLineIdSet.has(line.id);
+                const isIssueSelected = selectedIssueLineIdSet.has(line.id);
 
                 return (
-                  <tr key={line.id ?? i} className={`pdt-row pdt-row--${line.status}${isBulkSelected ? ' pdt-row--bulk-selected' : ''}`}>
-                    <BulkSelectionCell
-                      bulkApplicableLineIdSet={bulkApplicableLineIdSet}
-                      disabled={bulkSelectionDisabled}
-                      hasBulkSelection={hasBulkSelection}
+                  <tr
+                    key={line.id ?? i}
+                    className={`pdt-row pdt-row--${line.status}${isIssueSelected ? ' pdt-row--issue-selected' : ''}`}
+                  >
+                    <IssueSelectionCell
+                      disabled={selectionDisabled}
+                      hasIssueSelection={hasIssueSelection}
                       line={line}
-                      onToggleBulkLine={onToggleBulkLine}
-                      selectedBulkLineIdSet={selectedBulkLineIdSet}
+                      onToggleIssueLine={onToggleIssueLine}
+                      reportableIssueLineIdSet={reportableIssueLineIdSet}
+                      selectedIssueLineIdSet={selectedIssueLineIdSet}
                     />
                     <td>
                       <MatchStatusBadge status={line.status} />

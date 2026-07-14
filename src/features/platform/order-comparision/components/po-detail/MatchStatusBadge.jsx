@@ -1,4 +1,4 @@
-// Statuses: matched | suggested | price-issue | qty-issue | missing | extra
+// Statuses: matched | suggested | price-issue | qty-issue | qty-price-issue | description-issue | missing-qb | missing-pdf | review
 
 const MATCH_STATUS_CONFIG = {
   matched: {
@@ -21,15 +21,40 @@ const MATCH_STATUS_CONFIG = {
     icon: '!',
     className: 'msb--qty-issue',
   },
+  'qty-price-issue': {
+    label: 'Qty + Price',
+    icon: '!',
+    className: 'msb--qty-price-issue',
+  },
+  'description-issue': {
+    label: 'Description',
+    icon: '!',
+    className: 'msb--description-issue',
+  },
+  'missing-qb': {
+    label: 'Missing QB',
+    icon: '!',
+    className: 'msb--missing-qb',
+  },
+  'missing-pdf': {
+    label: 'Missing PDF',
+    icon: '+',
+    className: 'msb--missing-pdf',
+  },
   missing: {
     label: 'Missing',
     icon: '!',
-    className: 'msb--missing',
+    className: 'msb--missing-qb',
   },
   extra: {
     label: 'Extra',
     icon: '+',
-    className: 'msb--extra',
+    className: 'msb--missing-pdf',
+  },
+  review: {
+    label: 'Review',
+    icon: '?',
+    className: 'msb--review',
   },
 };
 

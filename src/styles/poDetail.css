@@ -769,7 +769,7 @@ body.dark-mode .pdh-warning-item {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 1900px; /* fuerza scroll horizontal en pantallas chicas */
+  min-width: 1960px; /* fuerza scroll horizontal en pantallas chicas */
 }
 
 .pdt-table th {
@@ -823,13 +823,16 @@ body.dark-mode .pdh-warning-item {
 body.dark-mode .pdt-row--suggested td {
   background: var(--card-bg);
 }
-.pdt-row--bulk-selected td {
-  box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--table-link, #1d4ed8) 7%, transparent);
+.pdt-row--issue-selected td {
+  box-shadow: inset 0 0 0 9999px color-mix(in srgb, #0891b2 7%, transparent);
 }
 .pdt-row--price-issue td:first-child { border-left: 3px solid #dc2626; }
 .pdt-row--qty-issue td:first-child { border-left: 3px solid #f59e0b; }
-.pdt-row--missing td:first-child { border-left: 3px solid #dc2626; }
-.pdt-row--extra td:first-child { border-left: 3px solid #7c3aed; }
+.pdt-row--qty-price-issue td:first-child { border-left: 3px solid #ea580c; }
+.pdt-row--description-issue td:first-child { border-left: 3px solid #0891b2; }
+.pdt-row--review td:first-child { border-left: 3px solid #64748b; }
+.pdt-row--missing-qb td:first-child { border-left: 3px solid #dc2626; }
+.pdt-row--missing-pdf td:first-child { border-left: 3px solid #7c3aed; }
 
 .pdt-select-header,
 .pdt-select-cell {
@@ -1091,6 +1094,17 @@ body.dark-mode .pdt-row--suggested td {
   width: min(780px, 94vw);
 }
 
+.pdt-email-modal {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.32);
+  color: var(--text-main);
+  max-height: 92vh;
+  overflow: hidden;
+  width: min(980px, 96vw);
+}
+
 .pdt-edit-header {
   align-items: flex-start;
   border-bottom: 1px solid var(--card-border);
@@ -1128,6 +1142,188 @@ body.dark-mode .pdt-row--suggested td {
   display: grid;
   gap: 16px;
   padding: 16px;
+}
+
+.pdt-email-body {
+  display: grid;
+  gap: 16px;
+  max-height: calc(92vh - 132px);
+  overflow: auto;
+  padding: 16px;
+}
+
+.pdt-email-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pdt-email-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.pdt-email-grid span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pdt-email-field--wide {
+  grid-column: 1 / -1;
+}
+
+.pdt-email-grid input,
+.pdt-email-grid textarea {
+  background: var(--card-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--text-main);
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.pdt-email-grid textarea {
+  line-height: 1.45;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.pdt-email-grid input:focus,
+.pdt-email-grid textarea:focus {
+  border-color: var(--table-link);
+  outline: none;
+}
+
+.pdt-email-preview {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pdt-email-preview-header {
+  align-items: flex-start;
+  background: var(--table-th-bg);
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.pdt-email-preview-header p {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+.pdt-email-preview-header > span {
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pdt-email-issue-list {
+  display: grid;
+  gap: 0;
+}
+
+.pdt-email-issue {
+  border-top: 1px solid var(--table-td-border);
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.pdt-email-issue:first-child {
+  border-top: 0;
+}
+
+.pdt-email-issue-top {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.pdt-email-issue-top strong {
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.pdt-email-issue-top span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pdt-email-issue-descriptions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pdt-email-issue-descriptions div {
+  background: var(--table-th-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.pdt-email-issue-descriptions span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.pdt-email-issue-descriptions p {
+  color: var(--text-main);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pdt-email-issue-facts {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(92px, 1fr));
+  margin: 0;
+}
+
+.pdt-email-issue-facts div {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.pdt-email-issue-facts dt {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.pdt-email-issue-facts dd {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.pdt-email-issue-note {
+  border-top: 1px solid var(--table-td-border);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  padding-top: 10px;
 }
 
 .pdt-edit-description {
@@ -1405,6 +1601,12 @@ body.dark-mode .pdt-row--suggested td {
     grid-template-columns: 1fr;
   }
 
+  .pdt-email-grid,
+  .pdt-email-issue-descriptions,
+  .pdt-email-issue-facts {
+    grid-template-columns: 1fr;
+  }
+
   .pdt-edit-grid {
     grid-template-columns: 1fr;
   }
@@ -1452,8 +1654,17 @@ body.dark-mode .pdt-row--suggested td {
 .msb--qty-issue     { background: #fef3c7; color: #92400e; }
 .msb--qty-issue .msb-icon { background: #f59e0b; color: #fff; }
 
-.msb--missing       { background: #fee2e2; color: #b91c1c; }
-.msb--missing .msb-icon { background: #dc2626; color: #fff; }
+.msb--qty-price-issue { background: #ffedd5; color: #9a3412; }
+.msb--qty-price-issue .msb-icon { background: #ea580c; color: #fff; }
 
-.msb--extra         { background: #ede9fe; color: #5b21b6; }
-.msb--extra .msb-icon { background: #7c3aed; color: #fff; }
+.msb--description-issue { background: #cffafe; color: #155e75; }
+.msb--description-issue .msb-icon { background: #0891b2; color: #fff; }
+
+.msb--missing-qb    { background: #fee2e2; color: #b91c1c; }
+.msb--missing-qb .msb-icon { background: #dc2626; color: #fff; }
+
+.msb--missing-pdf   { background: #ede9fe; color: #5b21b6; }
+.msb--missing-pdf .msb-icon { background: #7c3aed; color: #fff; }
+
+.msb--review        { background: #e2e8f0; color: #334155; }
+.msb--review .msb-icon { background: #64748b; color: #fff; }

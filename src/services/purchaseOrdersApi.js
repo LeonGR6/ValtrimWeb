@@ -25,6 +25,10 @@ export const VENDOR_PDF_UPLOAD_WEBHOOK = getWebhookUrl(
   import.meta.env.VITE_VENDOR_PDF_UPLOAD_WEBHOOK,
   '/webhook/upload-pdf-vendor'
 );
+const VENDOR_ISSUES_EMAIL_WEBHOOK = getWebhookUrl(
+  import.meta.env.VITE_VENDOR_ISSUES_EMAIL_WEBHOOK,
+  '/webhook/send-vendor-issues-email'
+);
 
 const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -378,6 +382,19 @@ export const updateQuickBooksPurchaseOrderLine = async ({
   });
 
   return readWebhookResponse(response, 'Could not update the QuickBooks purchase order line.');
+};
+
+export const sendVendorIssuesEmail = async (payload) => {
+  const response = await fetch(VENDOR_ISSUES_EMAIL_WEBHOOK, {
+    method: 'POST',
+    headers: {
+      ...(await getWebhookAuthHeaders({ hasJsonBody: true })),
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return readWebhookResponse(response, 'Could not send the selected vendor issues.');
 };
 
 export const reconcilePurchaseOrderWithCurrentPdf = async (poNumber) => {

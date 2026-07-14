@@ -11,6 +11,7 @@ import {
   formatDisplayDate,
   formatWorkflowStatus,
   reconcilePurchaseOrderWithCurrentPdf,
+  sendVendorIssuesEmail,
   updateQuickBooksPurchaseOrderLine,
   updatePurchaseOrderNote,
   updatePurchaseOrderWorkflowStatus,
@@ -119,23 +120,33 @@ const formatStatus = (status) => {
 const mapLineStatus = (line) => {
   if (line.status === 'MATCHED') return 'matched';
 
-  if (line.type === 'LINE_NOT_FOUND_IN_QB') {
-    return 'extra';
+  const type = String(line.type || line.ai_status || '').toUpperCase();
+
+  if (type === 'LINE_NOT_FOUND_IN_QB') {
+    return 'missing-qb';
   }
 
-  if (line.type === 'LINE_NOT_FOUND_IN_PDF') {
-    return 'missing';
+  if (type === 'LINE_NOT_FOUND_IN_PDF') {
+    return 'missing-pdf';
   }
 
-  if (line.type?.includes('QTY')) {
-    return 'qty-issue';
+  if (type.includes('QTY') && type.includes('PRICE')) {
+    return 'qty-price-issue';
   }
 
-  if (line.type?.includes('PRICE')) {
+  if (type.includes('PRICE')) {
     return 'price-issue';
   }
 
-  return 'price-issue';
+  if (type.includes('QTY')) {
+    return 'qty-issue';
+  }
+
+  if (type.includes('DESCRIPTION')) {
+    return 'description-issue';
+  }
+
+  return 'review';
 };
 
 const formatIssueType = (line) => {
@@ -143,11 +154,27 @@ const formatIssueType = (line) => {
   if (!line.type) return line.message || 'Review';
 
   if (line.type === 'LINE_NOT_FOUND_IN_QB') {
-    return 'Found in PDF, Missing in QuickBooks';
+    return 'Missing from PO';
   }
 
   if (line.type === 'LINE_NOT_FOUND_IN_PDF') {
-    return 'Found in QuickBooks, Missing in PDF';
+    return 'Missing from Vendor Confirmation';
+  }
+
+  if (line.type === 'QTY_PRICE_MISMATCH') {
+    return 'Qty + Price Issue';
+  }
+
+  if (line.type === 'PRICE_MISMATCH') {
+    return 'Price Issue';
+  }
+
+  if (line.type === 'QTY_MISMATCH') {
+    return 'Qty Issue';
+  }
+
+  if (String(line.type).includes('DESCRIPTION')) {
+    return 'Description Issue';
   }
 
   return line.type
@@ -382,6 +409,79 @@ const isOneToOnePriceOnlySuggestedLine = (line, aiDifferences = []) => {
   );
 };
 
+const isOneToOnePriceIssueLine = (line) => (
+  line.status === 'price-issue' &&
+  getSuggestedPdfRefs(line).length === 1 &&
+  getSuggestedQbRefs(line).length === 1 &&
+  numbersMatch(line.confQty, line.poQty) &&
+  (
+    numbersDiffer(line.confUnitCost, line.poUnitCost) ||
+    numbersDiffer(line.confTotal, line.poTotal)
+  )
+);
+
+const isOneToOneRateFixLine = (line, aiDifferences = []) => (
+  isOneToOnePriceIssueLine(line) ||
+  isOneToOnePriceOnlySuggestedLine(line, aiDifferences)
+);
+
+const shouldShowQbEditComparison = (line) => (
+  ['suggested', 'price-issue'].includes(line?.status)
+);
+
+const REPORTABLE_ISSUE_STATUSES = new Set([
+  'suggested',
+  'price-issue',
+  'qty-issue',
+  'qty-price-issue',
+  'description-issue',
+  'missing-qb',
+  'missing-pdf',
+  'review',
+]);
+
+const isReportableIssueLine = (line) => (
+  !line?.isSection && REPORTABLE_ISSUE_STATUSES.has(line.status)
+);
+
+const splitRecipients = (value) => (
+  String(value || '')
+    .split(/[;,]/)
+    .map((recipient) => recipient.trim())
+    .filter(Boolean)
+);
+
+const isLikelyEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+
+const buildVendorIssueSnapshot = (line) => ({
+  id: line.id,
+  status: line.status,
+  issue_type: line.issueType,
+  issue_code: line.issueCode ?? line.status ?? null,
+  pdf_line: line.pdfLineNumber,
+  qb_line: line.poLineNumber,
+  pdf_item_id: line.vendorDescription?.itemId ?? line.itemId ?? null,
+  pdf_description: line.vendorDescription?.description ?? null,
+  qb_description: line.poDescription ?? null,
+  pdf_qty: line.confQty ?? null,
+  qb_qty: line.poQty ?? null,
+  pdf_unit_price: line.confUnitCost ?? null,
+  qb_rate: line.poUnitCost ?? null,
+  pdf_total: line.confTotal ?? null,
+  qb_total: line.poTotal ?? null,
+  variance: line.variance ?? null,
+  required_date: line.reqDate ?? null,
+  vendor_ship_date: line.vendorShipDate ?? null,
+  ai_reason: line.aiReason ?? null,
+  note: line.sourceMessage ?? null,
+  match_type: line.matchType ?? null,
+  match_rule: line.matchRule ?? null,
+});
+
+const buildDefaultVendorEmailMessage = (po) => (
+  `The following Vendor Confirmation row(s) need review for PO: ${po.poNumber}`
+);
+
 const isActionableWarning = (warning) => warning?.type !== 'QB_GROUPED_LINES';
 
 const buildSuggestedRateFix = (line) => {
@@ -392,7 +492,7 @@ const buildSuggestedRateFix = (line) => {
 
   if (!qbLineNumber) {
     return {
-      error: 'A selected AI suggestion is missing a QuickBooks line number.',
+      error: 'A selected rate fix is missing a QuickBooks line number.',
       line,
     };
   }
@@ -413,7 +513,7 @@ const buildSuggestedRateFix = (line) => {
 
   if (!Number.isFinite(nextRate) || nextRate < 0) {
     return {
-      error: `QB line ${qbLineNumber} is missing a valid suggested rate.`,
+      error: `QB line ${qbLineNumber} is missing a valid replacement rate.`,
       line,
     };
   }
@@ -508,6 +608,7 @@ const normalizeDetailLine = (sourceLine, index, po) => {
     aiMatch: line.match_score ?? null,
     matchSimilarity: line.match_similarity ?? null,
     issueType: formatIssueType(line),
+    issueCode: line.type ?? line.ai_status ?? null,
     itemId: line.pdf_item_id ?? line.item_id ?? null,
     pdfLineNumber: line.pdf_line ?? null,
     poLineNumber: line.qb_line ?? null,
@@ -522,10 +623,15 @@ const normalizeDetailLine = (sourceLine, index, po) => {
     confUnitCost: line.pdf_unit_price ?? null,
     poTotal: line.qb_amount ?? null,
     confTotal: line.pdf_extd_price ?? null,
-    variance: getVariance(line.pdf_extd_price, line.qb_amount),
+    variance: line.variance ?? getVariance(line.pdf_extd_price, line.qb_amount),
     reqDate: po.requiredDate,
     vendorShipDate: po.vendorShipDate,
-    sourceMessage: line.message,
+    sourceMessage: line.message ?? line.ai_reason,
+    aiApplied: line.ai_applied === true,
+    aiStatus: line.ai_status ?? null,
+    aiReason: line.ai_reason ?? null,
+    matchRule: line.match_rule ?? null,
+    matchType: line.match_type ?? null,
   };
 };
 
@@ -684,12 +790,21 @@ const buildDetailFromOrder = (order, poId) => {
     return true;
   });
 
+  const qtyPriceIssueLines = unresolvedDiscrepancyLines.filter((line) => line.type === 'QTY_PRICE_MISMATCH');
+  const priceIssueLines = unresolvedDiscrepancyLines.filter((line) => line.type === 'PRICE_MISMATCH');
+  const qtyIssueLines = unresolvedDiscrepancyLines.filter((line) => line.type === 'QTY_MISMATCH');
+  const descriptionIssueLines = unresolvedDiscrepancyLines.filter((line) => String(line.type || '').includes('DESCRIPTION'));
   const pdfOnlyLines = unresolvedDiscrepancyLines.filter((line) => line.type === 'LINE_NOT_FOUND_IN_QB');
   const qbOnlyLines = unresolvedDiscrepancyLines.filter((line) => line.type === 'LINE_NOT_FOUND_IN_PDF');
-  const otherDiscrepancies = unresolvedDiscrepancyLines.filter((line) => (
-    line.type !== 'LINE_NOT_FOUND_IN_QB' &&
-    line.type !== 'LINE_NOT_FOUND_IN_PDF'
-  ));
+  const categorizedDiscrepancyLines = new Set([
+    ...qtyPriceIssueLines,
+    ...priceIssueLines,
+    ...qtyIssueLines,
+    ...descriptionIssueLines,
+    ...pdfOnlyLines,
+    ...qbOnlyLines,
+  ]);
+  const otherDiscrepancies = unresolvedDiscrepancyLines.filter((line) => !categorizedDiscrepancyLines.has(line));
   const displayMatchedLines = [...aiMatchedLines, ...normalizedMatchedLines];
 
   const lines = [
@@ -703,11 +818,51 @@ const buildDetailFromOrder = (order, poId) => {
         ]
       : []),
     ...reviewSuggestedLines,
+    ...(qtyPriceIssueLines.length > 0
+      ? [
+          buildSectionLine(
+            'section-qty-price-issues',
+            'Qty + Price Issues',
+            'Same product was found, but quantity and price or total need review.'
+          ),
+        ]
+      : []),
+    ...qtyPriceIssueLines.map((line, index) => normalizeDetailLine(line, `qty-price-${index}`, po)),
+    ...(priceIssueLines.length > 0
+      ? [
+          buildSectionLine(
+            'section-price-issues',
+            'Price Issues',
+            'Same product and quantity were found, but unit price or total differs.'
+          ),
+        ]
+      : []),
+    ...priceIssueLines.map((line, index) => normalizeDetailLine(line, `price-${index}`, po)),
+    ...(qtyIssueLines.length > 0
+      ? [
+          buildSectionLine(
+            'section-qty-issues',
+            'Qty Issues',
+            'Same product and price were found, but quantity differs.'
+          ),
+        ]
+      : []),
+    ...qtyIssueLines.map((line, index) => normalizeDetailLine(line, `qty-${index}`, po)),
+    ...(descriptionIssueLines.length > 0
+      ? [
+          buildSectionLine(
+            'section-description-issues',
+            'Description Issues',
+            'Possible pairs rejected because the product description does not match.'
+          ),
+        ]
+      : []),
+    ...descriptionIssueLines.map((line, index) => normalizeDetailLine(line, `description-${index}`, po)),
     ...(pdfOnlyLines.length > 0
       ? [
           buildSectionLine(
             'section-pdf-only',
-            'Found in PDF, Missing in QuickBooks',
+            'Missing From PO',
             'Vendor PDF lines that were not found as matching QuickBooks PO lines.'
           ),
         ]
@@ -717,7 +872,7 @@ const buildDetailFromOrder = (order, poId) => {
       ? [
           buildSectionLine(
             'section-qb-only',
-            'Found in QuickBooks, Missing in PDF',
+            'Missing From Vendor Confrimation',
             'QuickBooks PO lines that were not found in the vendor PDF.'
           ),
         ]
@@ -781,7 +936,6 @@ export default function PODetailPage() {
     isSaving: false,
     phase: 'idle',
   });
-  const [selectedRateFixLineIds, setSelectedRateFixLineIds] = useState([]);
   const [bulkRateUpdateState, setBulkRateUpdateState] = useState({
     completed: 0,
     currentLine: null,
@@ -789,6 +943,16 @@ export default function PODetailPage() {
     isSaving: false,
     phase: 'idle',
     total: 0,
+  });
+  const [selectedVendorIssueLineIds, setSelectedVendorIssueLineIds] = useState([]);
+  const [vendorIssueEmailDraft, setVendorIssueEmailDraft] = useState({
+    cc: '',
+    error: '',
+    isOpen: false,
+    isSending: false,
+    message: '',
+    subject: '',
+    to: '',
   });
   const [pdfViewer, setPdfViewer] = useState({
     error: '',
@@ -827,7 +991,7 @@ export default function PODetailPage() {
 
     if (!refreshedLine) return;
 
-    const suggestedRate = refreshedLine.status === 'suggested' && isSingleNumericValue(refreshedLine.confUnitCost)
+    const suggestedRate = ['suggested', 'price-issue'].includes(refreshedLine.status) && isSingleNumericValue(refreshedLine.confUnitCost)
       ? refreshedLine.confUnitCost
       : null;
 
@@ -889,12 +1053,15 @@ export default function PODetailPage() {
   const { po, lines, totalResults } = buildDetailFromOrder(order, poId);
   const priceOnlyRateFixLines = lines.filter((line) => (
     !line.isSection &&
-    isOneToOnePriceOnlySuggestedLine(line, po.aiDifferences || []) &&
+    isOneToOneRateFixLine(line, po.aiDifferences || []) &&
     !buildSuggestedRateFix(line).error
   ));
   const priceOnlyRateFixIds = priceOnlyRateFixLines.map((line) => line.id);
-  const selectedRateFixLineIdSet = new Set(selectedRateFixLineIds);
-  const selectedRateFixLines = priceOnlyRateFixLines.filter((line) => selectedRateFixLineIdSet.has(line.id));
+  const reportableIssueLines = lines.filter(isReportableIssueLine);
+  const reportableIssueLineIds = reportableIssueLines.map((line) => line.id);
+  const selectedVendorIssueLineIdSet = new Set(selectedVendorIssueLineIds);
+  const selectedVendorIssueLines = reportableIssueLines.filter((line) => selectedVendorIssueLineIdSet.has(line.id));
+  const selectedRateFixLines = priceOnlyRateFixLines.filter((line) => selectedVendorIssueLineIdSet.has(line.id));
 
   const handleNoteDraftChange = (nextNote) => {
     setNoteDraft(nextNote);
@@ -1030,7 +1197,7 @@ export default function PODetailPage() {
   };
 
   const handleEditQbLine = (line) => {
-    const suggestedRate = line.status === 'suggested' && isSingleNumericValue(line.confUnitCost)
+    const suggestedRate = ['suggested', 'price-issue'].includes(line.status) && isSingleNumericValue(line.confUnitCost)
       ? line.confUnitCost
       : null;
 
@@ -1064,43 +1231,181 @@ export default function PODetailPage() {
     }));
   };
 
-  const handleToggleRateFixLine = (lineId) => {
-    if (bulkRateUpdateState.isSaving) return;
+  const handleToggleVendorIssueLine = (lineId) => {
+    if (vendorIssueEmailDraft.isSending || bulkRateUpdateState.isSaving) return;
 
+    setVendorIssueEmailDraft((current) => ({
+      ...current,
+      error: '',
+    }));
     setBulkRateUpdateState((current) => ({
       ...current,
       error: '',
     }));
-    setSelectedRateFixLineIds((current) => (
+    setSelectedVendorIssueLineIds((current) => (
       current.includes(lineId)
         ? current.filter((currentLineId) => currentLineId !== lineId)
         : [...current, lineId]
     ));
   };
 
-  const handleToggleAllRateFixLines = () => {
-    if (bulkRateUpdateState.isSaving) return;
+  const handleToggleAllVendorIssueLines = () => {
+    if (vendorIssueEmailDraft.isSending || bulkRateUpdateState.isSaving) return;
 
+    setVendorIssueEmailDraft((current) => ({
+      ...current,
+      error: '',
+    }));
     setBulkRateUpdateState((current) => ({
       ...current,
       error: '',
     }));
-    setSelectedRateFixLineIds((current) => {
-      const applicableIds = new Set(priceOnlyRateFixIds);
-      const currentApplicableIds = current.filter((lineId) => applicableIds.has(lineId));
+    setSelectedVendorIssueLineIds((current) => {
+      const reportableIds = new Set(reportableIssueLineIds);
+      const currentReportableIds = current.filter((lineId) => reportableIds.has(lineId));
 
-      return currentApplicableIds.length === priceOnlyRateFixIds.length ? [] : priceOnlyRateFixIds;
+      return currentReportableIds.length === reportableIssueLineIds.length ? [] : reportableIssueLineIds;
     });
   };
 
-  const handleClearRateFixSelection = () => {
-    if (bulkRateUpdateState.isSaving) return;
+  const handleClearVendorIssueSelection = () => {
+    if (vendorIssueEmailDraft.isSending || bulkRateUpdateState.isSaving) return;
 
+    setSelectedVendorIssueLineIds([]);
+    setVendorIssueEmailDraft((current) => ({
+      ...current,
+      error: '',
+    }));
     setBulkRateUpdateState((current) => ({
       ...current,
       error: '',
     }));
-    setSelectedRateFixLineIds([]);
+  };
+
+  const handleOpenVendorIssueEmail = () => {
+    if (selectedVendorIssueLines.length === 0) {
+      addToast({
+        tone: 'error',
+        title: 'No issues selected',
+        message: 'Select at least one vendor issue before composing the email.',
+      });
+      return;
+    }
+
+    setVendorIssueEmailDraft((current) => ({
+      ...current,
+      error: '',
+      isOpen: true,
+      isSending: false,
+      message: current.message || buildDefaultVendorEmailMessage(po),
+      subject: current.subject || `Vendor Confirmation Issues - PO ${po.poNumber}`,
+    }));
+  };
+
+  const handleCloseVendorIssueEmail = () => {
+    if (vendorIssueEmailDraft.isSending) return;
+
+    setVendorIssueEmailDraft((current) => ({
+      ...current,
+      error: '',
+      isOpen: false,
+      isSending: false,
+    }));
+  };
+
+  const handleVendorIssueEmailDraftChange = (field, value) => {
+    setVendorIssueEmailDraft((current) => ({
+      ...current,
+      [field]: value,
+      error: '',
+    }));
+  };
+
+  const handleSendVendorIssueEmail = async () => {
+    if (vendorIssueEmailDraft.isSending) return;
+
+    const toRecipients = splitRecipients(vendorIssueEmailDraft.to);
+    const ccRecipients = splitRecipients(vendorIssueEmailDraft.cc);
+    const invalidRecipients = [...toRecipients, ...ccRecipients].filter((recipient) => !isLikelyEmail(recipient));
+    const subject = vendorIssueEmailDraft.subject.trim();
+    const issues = selectedVendorIssueLines.map(buildVendorIssueSnapshot);
+
+    if (toRecipients.length === 0) {
+      const validationMessage = 'Enter at least one vendor email address.';
+      setVendorIssueEmailDraft((current) => ({ ...current, error: validationMessage }));
+      return;
+    }
+
+    if (invalidRecipients.length > 0) {
+      const validationMessage = `Review these email addresses: ${invalidRecipients.join(', ')}`;
+      setVendorIssueEmailDraft((current) => ({ ...current, error: validationMessage }));
+      return;
+    }
+
+    if (!subject) {
+      const validationMessage = 'Enter an email subject.';
+      setVendorIssueEmailDraft((current) => ({ ...current, error: validationMessage }));
+      return;
+    }
+
+    if (issues.length === 0) {
+      const validationMessage = 'Select at least one vendor issue before sending.';
+      setVendorIssueEmailDraft((current) => ({ ...current, error: validationMessage }));
+      return;
+    }
+
+    setVendorIssueEmailDraft((current) => ({
+      ...current,
+      error: '',
+      isSending: true,
+    }));
+
+    try {
+      await sendVendorIssuesEmail({
+        cc: ccRecipients,
+        issue_count: issues.length,
+        issues,
+        job: po.job,
+        message: vendorIssueEmailDraft.message,
+        phase: po.phase,
+        po_number: po.poNumber,
+        purchase_order_id: order?.id ?? null,
+        recipient_email: toRecipients[0],
+        recipients: toRecipients,
+        requested_at: new Date().toISOString(),
+        source: 'valtrim_frontend_issue_email_mvp',
+        subject,
+        vendor: po.vendor,
+      });
+
+      addToast({
+        tone: 'success',
+        title: 'Vendor email sent',
+        message: `${issues.length} issue${issues.length === 1 ? '' : 's'} sent for PO ${po.poNumber}.`,
+      });
+
+      setSelectedVendorIssueLineIds([]);
+      setVendorIssueEmailDraft((current) => ({
+        ...current,
+        error: '',
+        isOpen: false,
+        isSending: false,
+      }));
+    } catch (error) {
+      console.error('Error sending selected vendor issues:', error);
+      const errorMessage = error.message || 'Could not send the selected vendor issues.';
+
+      addToast({
+        tone: 'error',
+        title: 'Vendor email failed',
+        message: errorMessage,
+      });
+      setVendorIssueEmailDraft((current) => ({
+        ...current,
+        error: errorMessage,
+        isSending: false,
+      }));
+    }
   };
 
   const handleApplySelectedRateFixes = async () => {
@@ -1110,7 +1415,7 @@ export default function PODetailPage() {
     const invalidFix = fixes.find((fix) => fix.error);
 
     if (fixes.length === 0) {
-      const validationMessage = 'Select at least one suggested rate before applying.';
+      const validationMessage = 'Select at least one rate issue before applying.';
       setBulkRateUpdateState({
         completed: 0,
         currentLine: null,
@@ -1138,7 +1443,7 @@ export default function PODetailPage() {
       });
       addToast({
         tone: 'error',
-        title: 'Invalid suggested rate',
+        title: 'Invalid rate issue',
         message: invalidFix.error,
       });
       return;
@@ -1191,7 +1496,7 @@ export default function PODetailPage() {
       addToast({
         tone: 'success',
         title: 'QuickBooks updated',
-        message: `${fixes.length} suggested rate${fixes.length === 1 ? '' : 's'} applied to PO ${poId}.`,
+        message: `${fixes.length} rate fix${fixes.length === 1 ? '' : 'es'} applied to PO ${poId}.`,
       });
 
       setBulkRateUpdateState({
@@ -1235,7 +1540,7 @@ export default function PODetailPage() {
 
       await refreshPurchaseOrderDetails();
 
-      setSelectedRateFixLineIds([]);
+      setSelectedVendorIssueLineIds([]);
       setBulkRateUpdateState({
         completed,
         currentLine: null,
@@ -1258,7 +1563,7 @@ export default function PODetailPage() {
         total: 0,
       });
     } catch (error) {
-      console.error('Error applying suggested QuickBooks rates:', error);
+      console.error('Error applying QuickBooks rate fixes:', error);
 
       const failureTitle = {
         quickbooks: 'QuickBooks update failed',
@@ -1454,7 +1759,8 @@ export default function PODetailPage() {
     success: 'Updated',
   }[qbLineUpdateState.phase] || 'Save in QuickBooks';
 
-  const hasPdfRateSuggestion = editingQbLine?.status === 'suggested' && isSingleNumericValue(editingQbLine.confUnitCost);
+  const showQbEditComparison = shouldShowQbEditComparison(editingQbLine);
+  const hasPdfRateSuggestion = showQbEditComparison && isSingleNumericValue(editingQbLine.confUnitCost);
 
   return (
     <div className="order-page">
@@ -1516,13 +1822,16 @@ export default function PODetailPage() {
             bulkApplicableLineIds={priceOnlyRateFixIds}
             bulkSelectionDisabled={bulkRateUpdateState.isSaving}
             bulkUpdateState={bulkRateUpdateState}
+            issueSelectionDisabled={vendorIssueEmailDraft.isSending}
             lines={lines}
             onApplyBulkRateFixes={handleApplySelectedRateFixes}
-            onClearBulkSelection={handleClearRateFixSelection}
+            onClearIssueSelection={handleClearVendorIssueSelection}
             onEditQuickBooksLine={handleEditQbLine}
-            onToggleAllBulkLines={handleToggleAllRateFixLines}
-            onToggleBulkLine={handleToggleRateFixLine}
-            selectedBulkLineIds={selectedRateFixLineIds}
+            onOpenIssueEmailComposer={handleOpenVendorIssueEmail}
+            onToggleAllIssueLines={handleToggleAllVendorIssueLines}
+            onToggleIssueLine={handleToggleVendorIssueLine}
+            reportableIssueLineIds={reportableIssueLineIds}
+            selectedIssueLineIds={selectedVendorIssueLineIds}
             totalResults={totalResults}
           />
         </>
@@ -1576,6 +1885,163 @@ export default function PODetailPage() {
         </div>
       )}
 
+      {vendorIssueEmailDraft.isOpen && (
+        <div className="pdt-edit-overlay" role="dialog" aria-modal="true" aria-label="Email selected vendor issues">
+          <div className="pdt-email-modal">
+            <div className="pdt-edit-header">
+              <div>
+                <div className="pdt-edit-eyebrow">Vendor email</div>
+                <h3>Send selected issues</h3>
+              </div>
+              <button
+                className="pdt-edit-close"
+                type="button"
+                onClick={handleCloseVendorIssueEmail}
+                disabled={vendorIssueEmailDraft.isSending}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="pdt-email-body">
+              <div className="pdt-email-grid">
+                <label>
+                  <span>To</span>
+                  <input
+                    disabled={vendorIssueEmailDraft.isSending}
+                    multiple
+                    placeholder="vendor@example.com"
+                    type="email"
+                    value={vendorIssueEmailDraft.to}
+                    onChange={(event) => handleVendorIssueEmailDraftChange('to', event.target.value)}
+                  />
+                </label>
+
+                <label>
+                  <span>CC</span>
+                  <input
+                    disabled={vendorIssueEmailDraft.isSending}
+                    placeholder="optional@example.com"
+                    type="text"
+                    value={vendorIssueEmailDraft.cc}
+                    onChange={(event) => handleVendorIssueEmailDraftChange('cc', event.target.value)}
+                  />
+                </label>
+
+                <label className="pdt-email-field--wide">
+                  <span>Subject</span>
+                  <input
+                    disabled={vendorIssueEmailDraft.isSending}
+                    type="text"
+                    value={vendorIssueEmailDraft.subject}
+                    onChange={(event) => handleVendorIssueEmailDraftChange('subject', event.target.value)}
+                  />
+                </label>
+
+                <label className="pdt-email-field--wide">
+                  <span>Message</span>
+                  <textarea
+                    disabled={vendorIssueEmailDraft.isSending}
+                    rows={5}
+                    value={vendorIssueEmailDraft.message}
+                    onChange={(event) => handleVendorIssueEmailDraftChange('message', event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="pdt-email-preview">
+                <div className="pdt-email-preview-header">
+                  <div>
+                    <div className="pdt-edit-section-title">Issue preview</div>
+                    <p>{selectedVendorIssueLines.length} selected for PO {po.poNumber}</p>
+                  </div>
+                  <span>{po.vendor || 'Vendor'}</span>
+                </div>
+
+                <div className="pdt-email-issue-list">
+                  {selectedVendorIssueLines.map((line) => (
+                    <article className="pdt-email-issue" key={line.id}>
+                      <div className="pdt-email-issue-top">
+                        <strong>{line.issueType || line.status}</strong>
+                        <span>PDF {line.pdfLineNumber || '-'} / QB {line.poLineNumber || '-'}</span>
+                      </div>
+                      <div className="pdt-email-issue-descriptions">
+                        <div>
+                          <span>PDF</span>
+                          <p>{line.vendorDescription?.description || 'No PDF description available.'}</p>
+                        </div>
+                        <div>
+                          <span>QuickBooks</span>
+                          <p>{line.poDescription || 'No QuickBooks description available.'}</p>
+                        </div>
+                      </div>
+                      <dl className="pdt-email-issue-facts">
+                        <div>
+                          <dt>PDF Qty</dt>
+                          <dd>{formatPlainNumber(line.confQty)}</dd>
+                        </div>
+                        <div>
+                          <dt>QB Qty</dt>
+                          <dd>{formatPlainNumber(line.poQty)}</dd>
+                        </div>
+                        <div>
+                          <dt>PDF Unit</dt>
+                          <dd>{formatCurrency(line.confUnitCost) || '-'}</dd>
+                        </div>
+                        <div>
+                          <dt>QB Rate</dt>
+                          <dd>{formatCurrency(line.poUnitCost) || '-'}</dd>
+                        </div>
+                        <div>
+                          <dt>PDF Total</dt>
+                          <dd>{formatCurrency(line.confTotal) || '-'}</dd>
+                        </div>
+                        <div>
+                          <dt>QB Total</dt>
+                          <dd>{formatCurrency(line.poTotal) || '-'}</dd>
+                        </div>
+                        <div>
+                          <dt>Variance</dt>
+                          <dd>{formatCurrency(line.variance) || '-'}</dd>
+                        </div>
+                      </dl>
+                      {line.sourceMessage && (
+                        <div className="pdt-email-issue-note">
+                          {line.sourceMessage}
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              {vendorIssueEmailDraft.error && (
+                <div className="pdt-edit-error">{vendorIssueEmailDraft.error}</div>
+              )}
+            </div>
+
+            <div className="pdt-edit-actions">
+              <button
+                className="pdt-edit-secondary"
+                type="button"
+                onClick={handleCloseVendorIssueEmail}
+                disabled={vendorIssueEmailDraft.isSending}
+              >
+                Cancel
+              </button>
+              <button
+                className="pdt-edit-primary"
+                type="button"
+                onClick={handleSendVendorIssueEmail}
+                disabled={vendorIssueEmailDraft.isSending}
+              >
+                {vendorIssueEmailDraft.isSending ? 'Sending...' : 'Send email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingQbLine && (
         <div className="pdt-edit-overlay" role="dialog" aria-modal="true" aria-label="Edit QuickBooks line">
           <div className="pdt-edit-modal">
@@ -1612,7 +2078,7 @@ export default function PODetailPage() {
                 </div>
               )}
 
-              {editingQbLine.status === 'suggested' ? (
+              {showQbEditComparison ? (
                 <div className="pdt-edit-comparison">
                   <section>
                     <div className="pdt-edit-section-title">PDF line</div>
