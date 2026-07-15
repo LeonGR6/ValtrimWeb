@@ -298,7 +298,7 @@ export default function PODetailTable({
         <div className="pdt-bulk-toolbar">
           <div className="pdt-bulk-summary">
             <strong>{selectedIssueCount} selected</strong>
-            <span>{reportableIssueLineIds.length} vendor issues</span>
+            <span>{reportableIssueLineIds.length} issues</span>
             {hasBulkAction && (
               <span>{selectedRateFixCount} selected rate fixes</span>
             )}
