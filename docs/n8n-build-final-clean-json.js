@@ -44,6 +44,113 @@ function compactArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
+function normalizeDescription(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[\u2019]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function splitLineRefs(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function isSwingRequiredDoorMatch(line) {
+  const pdfDescription = normalizeDescription([
+    line.pdf_description,
+    line.pdf_item_description,
+    line.item_description,
+  ].filter(Boolean).join(' '));
+  const hasLouver = /\bLOUVER(?:ED)?\b|\bLVR\b/.test(pdfDescription);
+  const hasThickDoorThickness = (
+    /\b1\s*(?:-\s*|\s+)3\s*\/\s*4\b/.test(pdfDescription) ||
+    /\b1\s*¾(?=$|[^0-9])/.test(pdfDescription) ||
+    /\b1\.75\b/.test(pdfDescription)
+  );
+  const isDoor = /\bDOORS?\b|\bINTERIOR[\s_]+DOOR\b|\bENTRY[\s_]+UNIT\b/.test(pdfDescription);
+
+  return isDoor && (hasLouver || hasThickDoorThickness);
+}
+
+function hasQbSwingDirection(value) {
+  const description = normalizeDescription(value);
+
+  return (
+    /\bSWING[\s-]*(?:IN|OUT)\b/.test(description) ||
+    /(?:^|[^A-Z0-9])S\s*\/\s*[IO](?=$|[^A-Z0-9])/.test(description) ||
+    /\bS[IO]\b/.test(description)
+  );
+}
+
+function getQbSourceLookup(data) {
+  const lookup = new Map();
+  const sourceLines = Array.isArray(data.qbData?.qb_line_items)
+    ? data.qbData.qb_line_items
+    : [];
+
+  for (const line of sourceLines) {
+    const lineRef = line.qb_line_num ?? line.qb_line ?? line.line;
+
+    if (hasValue(lineRef)) {
+      lookup.set(String(lineRef).trim(), line);
+    }
+  }
+
+  return lookup;
+}
+
+function buildDoorSwingWarnings(data, matchedLines, existingWarnings) {
+  const qbSourceLookup = getQbSourceLookup(data);
+  const warnings = [...existingWarnings];
+  const warningKeys = new Set(warnings.map((warning) => (
+    `${warning.type || ''}|${warning.pdf_line || ''}|${warning.qb_line || ''}`
+  )));
+
+  for (const line of matchedLines) {
+    if (!isSwingRequiredDoorMatch(line)) continue;
+
+    const qbLineRefs = splitLineRefs(line.qb_line);
+    const qbCandidates = qbLineRefs.length > 0
+      ? qbLineRefs.map((lineRef) => {
+          const source = qbSourceLookup.get(lineRef);
+
+          return {
+            lineRef,
+            description: source?.qb_description ?? source?.description ?? (
+              qbLineRefs.length === 1 ? line.qb_description : ''
+            ),
+          };
+        })
+      : [{ lineRef: line.qb_line, description: line.qb_description }];
+
+    for (const candidate of qbCandidates) {
+      if (hasQbSwingDirection(candidate.description)) continue;
+
+      const warning = {
+        type: 'DOOR_SWING_MISSING_IN_QB',
+        severity: 'WARNING',
+        pdf_line: line.pdf_line,
+        qb_line: candidate.lineRef,
+        item_description: line.item_description,
+        message: 'Missing S/O or S/I in QuickBooks description.',
+      };
+      const warningKey = `${warning.type}|${warning.pdf_line || ''}|${warning.qb_line || ''}`;
+
+      if (!warningKeys.has(warningKey)) {
+        warnings.push(warning);
+        warningKeys.add(warningKey);
+      }
+    }
+  }
+
+  return warnings;
+}
+
 function cleanAllocation(allocation) {
   return compactObject({
     line: allocation.line,
@@ -93,6 +200,11 @@ function cleanComparisonLine(line) {
     unit_price_difference: cleanMoneyValue(line.unit_price_difference),
     amount_difference: cleanMoneyValue(line.amount_difference),
     variance: cleanMoneyValue(line.variance),
+    description_differences: compactArray(line.description_differences).map((difference) => compactObject({
+      field: difference.field,
+      pdf_value: difference.pdf_value,
+      qb_value: difference.qb_value,
+    })),
 
     match_score: isMatched ? line.match_score : undefined,
     match_similarity: isMatched ? line.match_similarity : undefined,
@@ -130,7 +242,7 @@ function cleanAiReview(aiReview) {
 
 const matchedLines = compactArray(data.matched_lines).map(cleanComparisonLine);
 const discrepancies = compactArray(data.discrepancias).map(cleanComparisonLine);
-const warnings = compactArray(data.warnings).map((warning) => compactObject({
+const cleanedWarnings = compactArray(data.warnings).map((warning) => compactObject({
   type: warning.type,
   severity: warning.severity,
   pdf_line: warning.pdf_line,
@@ -138,6 +250,7 @@ const warnings = compactArray(data.warnings).map((warning) => compactObject({
   item_description: warning.item_description,
   message: warning.message,
 }));
+const warnings = buildDoorSwingWarnings(data, matchedLines, cleanedWarnings);
 const aiReview = cleanAiReview(data.ai_review);
 const totalPdf = roundMoney(data.totalPdf);
 const totalQb = roundMoney(data.totalQb);
@@ -151,6 +264,7 @@ const summary = compactObject({
   discrepancies_count: discrepancies.length,
   qty_mismatches_count: discrepancies.filter((line) => String(line.type || '').includes('QTY')).length,
   price_mismatches_count: discrepancies.filter((line) => String(line.type || '').includes('PRICE')).length,
+  description_mismatches_count: discrepancies.filter((line) => line.type === 'DESCRIPTION_MISMATCH').length,
   pdf_not_in_qb: discrepancies.filter((line) => line.type === 'LINE_NOT_FOUND_IN_QB').length,
   qb_not_in_pdf: discrepancies.filter((line) => line.type === 'LINE_NOT_FOUND_IN_PDF').length,
   bundle_matches_count: matchedLines.filter((line) => line.match_rule === 'BYPASS_TRACK_HARDWARE_BUNDLE').length,

@@ -17,6 +17,8 @@ function formatWarningTitle(warning) {
 function formatWarningDetail(warning) {
   const parts = [];
 
+  if (warning.qb_line != null) parts.push(`QuickBooks line ${warning.qb_line}`);
+  if (warning.pdf_line != null) parts.push(`PDF line ${warning.pdf_line}`);
   if (warning.message) parts.push(warning.message);
   if (warning.diff != null) parts.push(`Difference: ${warning.diff}`);
   if (warning.value_pdf != null) parts.push(`PDF: ${warning.value_pdf}`);
@@ -208,7 +210,10 @@ export default function PODetailHeader({
           </div>
           <div className="pdh-warning-list">
             {po.warnings.map((warning, index) => (
-              <div className="pdh-warning-item" key={`${warning.type ?? 'warning'}-${index}`}>
+              <div
+                className="pdh-warning-item"
+                key={`${warning.type ?? 'warning'}-${warning.qb_line ?? 'no-qb-line'}-${warning.pdf_line ?? 'no-pdf-line'}-${index}`}
+              >
                 <strong>{formatWarningTitle(warning)}</strong>
                 {formatWarningDetail(warning) && (
                   <p>{formatWarningDetail(warning)}</p>

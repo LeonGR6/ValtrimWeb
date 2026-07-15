@@ -664,7 +664,7 @@ for (const correction of corrections) {
   if (correction.safe_to_auto_apply !== true) {
     skippedCorrections.push({
       ...correction,
-      skipped_reason: 'safe_to_auto_apply is not true.',
+      skipped_reason: 'safe_to_auto_apply is not true; AI matches and mismatches are audit-only until explicitly marked safe.',
     });
     continue;
   }

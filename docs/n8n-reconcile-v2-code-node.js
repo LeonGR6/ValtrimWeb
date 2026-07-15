@@ -39,6 +39,16 @@ function cleanText(value) {
     .trim();
 }
 
+function cleanOcrDescription(value) {
+  return String(value || '')
+    .replace(
+      /(\*{3}\s*BEVEL\s+2\s+SIDES\s*\*{3})(?:\s*\*{3}\s*BEVEL\s+2\s+SIDES\s*\*{3})+/gi,
+      '$1'
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function joinValues(values, separator = ', ') {
   const visible = values.filter(hasValue);
   return visible.length ? visible.join(separator) : null;
@@ -222,8 +232,8 @@ function extractJambDepth(description) {
 function extractThickness(description) {
   const value = cleanText(description).replace(/"/g, '');
 
-  if (/\b1\s*-\s*3\/8\b/.test(value)) return '1-3/8';
-  if (/\b1\s*-\s*3\/4\b/.test(value)) return '1-3/4';
+  if (/\b1(?:\s*-\s*|\s+)3\/8\b/.test(value)) return '1-3/8';
+  if (/\b1(?:\s*-\s*|\s+)3\/4\b/.test(value)) return '1-3/4';
 
   return null;
 }
@@ -254,6 +264,7 @@ function extractStyle(description) {
   const style = [];
 
   if (/\b(?:2PNL|2-PANEL|2 PANEL)\b/.test(value)) style.push('2PANEL');
+  if (/\bLOUVER(?:ED)?\b|\bLVR\b/.test(value)) style.push('LOUVER');
   if (/\b(?:SQTP|SQ\s*TOP|SQ)\b/.test(value)) style.push('SQ');
 
   return style.length ? style.join('-') : null;
@@ -379,10 +390,47 @@ function extractHand(description) {
   return null;
 }
 
+function isLouverDescription(description) {
+  const value = cleanText(description);
+
+  return /\bLOUVER(?:ED)?\b|\bLVR\b|\bLVR\s*\/\s*LVR\b/.test(value);
+}
+
+function isThermaTruEntryDescription(description) {
+  const value = cleanText(description);
+
+  return (
+    /\bTHERMA[\s-]*TRU\b/.test(value) ||
+    /\bSMOOTH[\s-]*STAR\b/.test(value) ||
+    /\bS8000[\s-]*LE\b/.test(value)
+  );
+}
+
+function extractDoorModel(description) {
+  const value = cleanText(description);
+  const s1Model = value.match(/\bS1([LR])CL\s*-?\s*FFLE\b/);
+
+  if (s1Model) return `S1${s1Model[1]}CL-FFLE`;
+  if (/\bS8000\s*-?\s*LE\b/.test(value)) return 'S8000LE';
+  if (isLouverDescription(value) && /(?:#\s*|\b)730\b/.test(value)) return '730';
+
+  return null;
+}
+
 function hasMetalHanding(description) {
   const value = cleanText(description);
 
   return /\bMETAL\s+HANDING\b|\bSTEEL\s+HANDING\b|\bRH\s+METAL\b|\bLH\s+METAL\b|\bRH\s+STEEL\b|\bLH\s+STEEL\b/.test(value);
+}
+
+function usesReverseEntryHand(description) {
+  const value = cleanText(description);
+
+  return (
+    hasMetalHanding(value) ||
+    /\bTIMELY\b/.test(value) ||
+    isThermaTruEntryDescription(value)
+  );
 }
 
 function normalizePdfHand(description, productType) {
@@ -390,7 +438,7 @@ function normalizePdfHand(description, productType) {
 
   if (!hand) return null;
 
-  if (productType === 'ENTRY_UNIT' && hasMetalHanding(description)) {
+  if (productType === 'ENTRY_UNIT' && usesReverseEntryHand(description)) {
     return hand === 'R' ? 'L' : 'R';
   }
 
@@ -410,13 +458,18 @@ function detectCategory(description) {
   if (/\bCASED\s+OPENING\b|\bC\/O\b|\bC\s*O\s+JAMB\b/.test(value)) return 'CASED_OPENING';
   if (/\bPREFIT\s+JAMB\b|\bJAMB\s+SET\b|\bFB\s+PREFIT\s+JAMB\b|\bMDF\s+CASING\b/.test(value)) return 'PREFIT_JAMB';
   if (
+    isLouverDescription(value) &&
+    /\bDOOR\b|\bSLAB\b|\bMDF\b|\bPRIMED\b|(?:#\s*|\b)730\b|\b2[\s-]*PANEL\b|\bB2\b/.test(value)
+  ) return 'INTERIOR_DOOR';
+  if (
     /\bENTRY\s+UNIT\b|\b20\s*\/?\s*MIN\b|\b20MIN\b/.test(value) ||
+    isThermaTruEntryDescription(value) ||
     (
       /\b1\s*-\s*3\/4\b/.test(value) &&
       /\b(?:SC|FIBERGLASS|FIBER\s*GLASS|PLASTPRO|LOW\s*-?\s*E|1\s*-?\s*LITE|1LT)\b/.test(value)
     )
   ) return 'ENTRY_UNIT';
-  if (/\bINTERIOR\s+DOOR\b|\bDOOR\s+ENTRY\b|\bCARRARA\b|\bHC\b|\b2PNL\b|\b2-PANEL\b/.test(value)) return 'INTERIOR_DOOR';
+  if (/\bINTERIOR(?:\s+WOOD)?\s+DOOR\b|\bDOOR\s+ENTRY\b|\bCARRARA\b|\bHC\b|\b2PNL\b|\b2[\s-]PANEL\b/.test(value)) return 'INTERIOR_DOOR';
 
   return 'OTHER';
 }
@@ -452,10 +505,11 @@ function buildItemDescription(fields) {
     base.push(
       fields.thickness,
       fields.core,
-      fields.style,
+      fields.isLouver ? 'LOUVER' : fields.style,
+      fields.doorModel,
       fields.prep,
       fields.fireRating,
-      fields.hand ? `HAND_${fields.hand}` : null
+      !fields.isLouver && fields.hand ? `HAND_${fields.hand}` : null
     );
   } else if (fields.category === 'PREFIT_JAMB') {
     base.push(
@@ -491,12 +545,18 @@ function normalizeProduct(line, side) {
     : line.qb_description ?? line.description;
   const category = detectCategory(description);
   const size = extractPrimarySize(description);
+  const isLouver = isLouverDescription(description);
+  const doorModel = extractDoorModel(description);
   const hand = side === 'pdf'
     ? normalizePdfHand(description, category)
     : extractHand(description);
   const trackSize = extractTrackSize(description);
   const jambDepth = extractJambDepth(description);
-  const thickness = extractThickness(description);
+  const thickness = extractThickness(description) || (
+    category === 'ENTRY_UNIT' && isThermaTruEntryDescription(description)
+      ? '1-3/4'
+      : null
+  );
   const core = extractCore(description);
   const material = extractMaterial(description);
   const style = extractStyle(description);
@@ -514,6 +574,8 @@ function normalizeProduct(line, side) {
   let productLabel;
   const normalizedFields = {
     category,
+    isLouver,
+    doorModel,
     size,
     hand,
     trackSize,
@@ -562,6 +624,15 @@ function normalizeProduct(line, side) {
       `casing=${casing || 'UNKNOWN'}`,
     ].join('|');
     productLabel = itemDescription || `${size.width || '?'} x ${size.height || '?'} ${jambDepth || '?'} ${casing || ''} cased opening`.trim();
+  } else if (category === 'INTERIOR_DOOR' && isLouver) {
+    productKey = [
+      'INTERIOR_DOOR_LOUVER',
+      `w=${size.width || 'UNKNOWN'}`,
+      `h=${size.height || 'UNKNOWN'}`,
+      `thick=${thickness || 'UNKNOWN'}`,
+      `model=${doorModel || 'LOUVER'}`,
+    ].join('|');
+    productLabel = itemDescription || `${size.width || '?'} x ${size.height || '?'} ${thickness || ''} louver door`.trim();
   } else if (category === 'ENTRY_UNIT' || category === 'INTERIOR_DOOR') {
     productKey = [
       category,
@@ -582,7 +653,17 @@ function normalizeProduct(line, side) {
   } else {
     const signature = fallbackSignature(description);
     const handKey = hand ? `hand=${hand}` : 'hand=NO_HAND';
-    productKey = `OTHER|${signature || 'UNKNOWN'}|${handKey}`;
+    productKey = [
+      'OTHER',
+      `w=${size.width || 'UNKNOWN'}`,
+      `h=${size.height || 'UNKNOWN'}`,
+      `thick=${thickness || 'UNKNOWN'}`,
+      `material=${material || 'UNKNOWN'}`,
+      `style=${style || 'UNKNOWN'}`,
+      `prep=${identityPrep || 'NO_PREP'}`,
+      `signature=${signature || 'UNKNOWN'}`,
+      handKey,
+    ].join('|');
     productLabel = compactParts([
       signature || itemDescription || 'Unclassified product',
       hand ? `HAND_${hand}` : null,
@@ -592,6 +673,8 @@ function normalizeProduct(line, side) {
   return {
     category,
     productType: category,
+    isLouver,
+    doorModel,
     productKey,
     productLabel,
     itemDescription: productLabel,
@@ -618,16 +701,19 @@ function normalizeProduct(line, side) {
 }
 
 function normalizePdfLine(line) {
+  const rawDescription = line.description ?? line.pdf_description ?? '';
+  const description = cleanOcrDescription(rawDescription);
   const qty = toNumber(line.ordered ?? line.qty ?? line.pdf_qty);
   const unitPrice = toNumber(line.unit_price ?? line.pdf_unit_price);
   const amount = roundMoney(line.extd_price ?? line.pdf_extd_price ?? qty * unitPrice);
-  const normalized = normalizeProduct(line, 'pdf');
+  const normalized = normalizeProduct({ ...line, description }, 'pdf');
 
   return {
     side: 'pdf',
     line: line.line ?? line.pdf_line ?? null,
     item_id: line.item_id ?? line.pdf_item_id ?? null,
-    description: line.description ?? line.pdf_description ?? '',
+    description,
+    source_description: rawDescription,
     item_description: normalized.itemDescription,
     qty,
     unitPrice,
@@ -832,11 +918,113 @@ function aggregateGroup(lines) {
   };
 }
 
+function lineSortValue(line) {
+  const numeric = Number(line?.line);
+
+  return Number.isFinite(numeric) ? numeric : Number.MAX_SAFE_INTEGER;
+}
+
+function pairEligible(pdfLine, qbLine) {
+  const pdfHand = pdfLine?.normalized?.comparisonHand;
+  const qbHand = qbLine?.normalized?.comparisonHand;
+
+  if (pdfHand && qbHand && pdfHand !== qbHand) return false;
+
+  return true;
+}
+
+function linePairScore(pdfLine, qbLine) {
+  let score = 0;
+  const pdfModel = pdfLine?.normalized?.doorModel;
+  const qbModel = qbLine?.normalized?.doorModel;
+
+  if (pdfModel && qbModel) {
+    score += pdfModel === qbModel ? 2000 : -2000;
+  }
+
+  score += qtyMatch(pdfLine.qty, qbLine.qty)
+    ? 1000
+    : -Math.abs(toNumber(pdfLine.qty) - toNumber(qbLine.qty)) * 25;
+  score += moneyMatch(pdfLine.unitPrice, qbLine.unitPrice)
+    ? 500
+    : -Math.abs(toNumber(pdfLine.unitPrice) - toNumber(qbLine.unitPrice)) * 5;
+  score += moneyMatch(pdfLine.amount, qbLine.amount)
+    ? 250
+    : -Math.abs(toNumber(pdfLine.amount) - toNumber(qbLine.amount)) / 5;
+
+  return score;
+}
+
+function pairGroupLines(pdfLines, qbLines) {
+  const candidates = [];
+  const usedPdf = new Set();
+  const usedQb = new Set();
+
+  for (let pdfIndex = 0; pdfIndex < pdfLines.length; pdfIndex += 1) {
+    for (let qbIndex = 0; qbIndex < qbLines.length; qbIndex += 1) {
+      const pdfLine = pdfLines[pdfIndex];
+      const qbLine = qbLines[qbIndex];
+
+      if (!pairEligible(pdfLine, qbLine)) continue;
+
+      candidates.push({
+        pdfIndex,
+        qbIndex,
+        pdfLine,
+        qbLine,
+        score: linePairScore(pdfLine, qbLine),
+      });
+    }
+  }
+
+  candidates.sort((a, b) => (
+    b.score - a.score ||
+    lineSortValue(a.pdfLine) - lineSortValue(b.pdfLine) ||
+    lineSortValue(a.qbLine) - lineSortValue(b.qbLine)
+  ));
+
+  const pairs = [];
+
+  for (const candidate of candidates) {
+    if (usedPdf.has(candidate.pdfIndex) || usedQb.has(candidate.qbIndex)) continue;
+
+    usedPdf.add(candidate.pdfIndex);
+    usedQb.add(candidate.qbIndex);
+    pairs.push(candidate);
+  }
+
+  pairs.sort((a, b) => lineSortValue(a.pdfLine) - lineSortValue(b.pdfLine));
+
+  return {
+    pairs,
+    pdfOnly: pdfLines.filter((_, index) => !usedPdf.has(index)),
+    qbOnly: qbLines.filter((_, index) => !usedQb.has(index)),
+  };
+}
+
+function identityConflicts(pdfLine, qbLine) {
+  const conflicts = [];
+  const pdfModel = pdfLine?.normalized?.doorModel;
+  const qbModel = qbLine?.normalized?.doorModel;
+
+  if (pdfModel && qbModel && pdfModel !== qbModel) {
+    conflicts.push({
+      field: 'door_model',
+      pdf_value: pdfModel,
+      qb_value: qbModel,
+    });
+  }
+
+  return conflicts;
+}
+
 function buildMatchedRow(group, pdfAgg, qbAgg) {
+  const isLouver = String(group.product_key || '').startsWith('INTERIOR_DOOR_LOUVER|');
+
   return {
     status: 'MATCHED',
     match_type: 'ONE_TO_ONE_PRODUCT',
-    match_rule: 'SAME_PRODUCT_QTY_UNIT_TOTAL',
+    match_rule: isLouver ? 'LOUVER_ONE_TO_ONE_QTY_RATE_TOTAL' : 'SAME_PRODUCT_QTY_UNIT_TOTAL',
     product_key: group.product_key,
     product_label: group.product_label,
     item_description: group.item_description || group.product_label,
@@ -856,7 +1044,37 @@ function buildMatchedRow(group, pdfAgg, qbAgg) {
     variance: roundMoney(pdfAgg.amount - qbAgg.amount),
     match_score: 100,
     match_similarity: 1,
-    message: 'Same product, quantity, unit price, and total.',
+    message: isLouver
+      ? 'Louver door matched one-to-one by size, thickness, model, quantity, unit price, and total; QuickBooks hand may be omitted.'
+      : 'Same product, quantity, unit price, and total.',
+  };
+}
+
+function buildDescriptionMismatchRow(group, pdfAgg, qbAgg, conflicts) {
+  return {
+    type: 'DESCRIPTION_MISMATCH',
+    source: 'BOTH',
+    product_key: group.product_key,
+    product_label: group.product_label,
+    item_description: group.item_description || group.product_label,
+    pdf_line: pdfAgg.lineRefs,
+    pdf_item_id: pdfAgg.itemIds,
+    pdf_item_description: pdfAgg.itemDescriptions,
+    pdf_description: pdfAgg.descriptions,
+    pdf_qty: pdfAgg.qty,
+    pdf_unit_price: pdfAgg.unitPrice,
+    pdf_extd_price: pdfAgg.amount,
+    qb_line: qbAgg.lineRefs,
+    qb_item_description: qbAgg.itemDescriptions,
+    qb_description: qbAgg.descriptions,
+    qb_qty: qbAgg.qty,
+    qb_rate: qbAgg.unitPrice,
+    qb_amount: qbAgg.amount,
+    description_differences: conflicts,
+    variance: roundMoney(pdfAgg.amount - qbAgg.amount),
+    message: conflicts.map((conflict) => (
+      `${conflict.field} differs: PDF=${conflict.pdf_value}, QuickBooks=${conflict.qb_value}.`
+    )).join(' '),
   };
 }
 
@@ -1013,24 +1231,40 @@ const discrepancias = [];
 const comparison_rows = [...bundleMatches];
 
 for (const group of [...groups.values()].sort((a, b) => String(a.product_key).localeCompare(String(b.product_key)))) {
-  const pdfAgg = aggregateGroup(group.pdf);
-  const qbAgg = aggregateGroup(group.qb);
-  const hasBoth = pdfAgg.lines.length > 0 && qbAgg.lines.length > 0;
-  const isMatch = (
-    hasBoth &&
-    qtyMatch(pdfAgg.qty, qbAgg.qty) &&
-    hasValue(pdfAgg.unitPrice) &&
-    hasValue(qbAgg.unitPrice) &&
-    moneyMatch(pdfAgg.unitPrice, qbAgg.unitPrice) &&
-    moneyMatch(pdfAgg.amount, qbAgg.amount)
-  );
+  const { pairs, pdfOnly, qbOnly } = pairGroupLines(group.pdf, group.qb);
 
-  if (isMatch) {
-    const row = buildMatchedRow(group, pdfAgg, qbAgg);
-    matched_lines.push(row);
+  for (const { pdfLine, qbLine } of pairs) {
+    const pdfAgg = aggregateGroup([pdfLine]);
+    const qbAgg = aggregateGroup([qbLine]);
+    const conflicts = identityConflicts(pdfLine, qbLine);
+    const isMatch = (
+      conflicts.length === 0 &&
+      qtyMatch(pdfAgg.qty, qbAgg.qty) &&
+      hasValue(pdfAgg.unitPrice) &&
+      hasValue(qbAgg.unitPrice) &&
+      moneyMatch(pdfAgg.unitPrice, qbAgg.unitPrice) &&
+      moneyMatch(pdfAgg.amount, qbAgg.amount)
+    );
+    const row = conflicts.length > 0
+      ? buildDescriptionMismatchRow(group, pdfAgg, qbAgg, conflicts)
+      : isMatch
+        ? buildMatchedRow(group, pdfAgg, qbAgg)
+        : buildDiscrepancyRow(group, pdfAgg, qbAgg);
+
+    if (isMatch) matched_lines.push(row);
+    else discrepancias.push(row);
+
     comparison_rows.push(row);
-  } else {
-    const row = buildDiscrepancyRow(group, pdfAgg, qbAgg);
+  }
+
+  for (const pdfLine of pdfOnly) {
+    const row = buildDiscrepancyRow(group, aggregateGroup([pdfLine]), aggregateGroup([]));
+    discrepancias.push(row);
+    comparison_rows.push(row);
+  }
+
+  for (const qbLine of qbOnly) {
+    const row = buildDiscrepancyRow(group, aggregateGroup([]), aggregateGroup([qbLine]));
     discrepancias.push(row);
     comparison_rows.push(row);
   }
@@ -1040,7 +1274,8 @@ const ai_review_items = [
   ...discrepancias.filter((line) => (
     line.type === 'LINE_NOT_FOUND_IN_QB' ||
     line.type === 'LINE_NOT_FOUND_IN_PDF' ||
-    line.type === 'LINE_MISMATCH'
+    line.type === 'LINE_MISMATCH' ||
+    line.type === 'DESCRIPTION_MISMATCH'
   )),
   ...buildFinancialDescriptionConflicts(discrepancias),
 ];
@@ -1058,6 +1293,7 @@ const summary = {
   discrepancies_count: discrepancias.length,
   qty_mismatches_count: discrepancias.filter((line) => String(line.type).includes('QTY')).length,
   price_mismatches_count: discrepancias.filter((line) => String(line.type).includes('PRICE')).length,
+  description_mismatches_count: discrepancias.filter((line) => line.type === 'DESCRIPTION_MISMATCH').length,
   pdf_not_in_qb: discrepancias.filter((line) => line.type === 'LINE_NOT_FOUND_IN_QB').length,
   qb_not_in_pdf: discrepancias.filter((line) => line.type === 'LINE_NOT_FOUND_IN_PDF').length,
   bundle_matches_count: bundleMatches.length,
@@ -1092,7 +1328,11 @@ return [{
       'Width/height formats such as 2-8, 2/8, 2/10, 6-8, 6/8, 8-0, and 8/0 are normalized before comparison.',
       'S/B, SB, and SINGLE BORE normalize to SINGLE_BORE; D/B, DB, DBL BORE, and DOUBLE BORE normalize to DOUBLE_BORE.',
       '20min, 20/MIN, 20MIN, and APPLY 20MIN LABEL normalize to 20MIN_FIRE_LABEL.',
-      'Interior doors and prefit wood jambs use direct hand matching; exterior entry units with metal/Timely prep use reverse metal-hand logic.',
+      'Interior doors and prefit wood jambs use direct hand matching; Therma-Tru exterior entry doors and entry units with metal/Timely prep use reverse hand logic between PDF and QuickBooks.',
+      'Louver doors are reconciled one-to-one by size, thickness, model/style, quantity, unit price, and total; missing QuickBooks LH/RH does not block a match.',
+      'Repeated product keys are paired one-to-one and are never aggregated, except for the explicit bypass track + hardware bundle rule.',
+      'Explicit door model differences remain DESCRIPTION_MISMATCH even when financial values match.',
+      'Matched PDF doors containing LOUVER/LOUVERED/LVR or a 1-3/4-inch thickness require a QuickBooks swing marker (SWING IN, SI, S/I, SWING OUT, SO, or S/O); a missing marker remains a match but creates an actionable warning during final cleanup.',
       'Same product plus same unit price but different quantity becomes QTY_MISMATCH.',
       'Same product plus same quantity but different unit price becomes PRICE_MISMATCH.',
       'Financial totals alone never create a product match.',
@@ -1103,7 +1343,9 @@ return [{
       prep: ['S/B = SB = SINGLE BORE = SINGLE_BORE', 'D/B = DB = DBL BORE = DOUBLE BORE = DOUBLE_BORE'],
       fire: ['20min Rating = 20MIN = 20/MIN = APPLY 20MIN LABEL = 20MIN_FIRE_LABEL'],
       casing: ['CSG = CASING', '120MUL = 120CSG = 120', '711 = 711'],
-      productTypes: ['ENTRY_UNIT', 'INTERIOR_DOOR', 'PREFIT_JAMB', 'CASED_OPENING', 'BYPASS_TRACK', 'BYPASS_HARDWARE', 'TRANSPORT'],
+      productTypes: ['ENTRY_UNIT', 'INTERIOR_DOOR', 'INTERIOR_DOOR_LOUVER', 'PREFIT_JAMB', 'CASED_OPENING', 'BYPASS_TRACK', 'BYPASS_HARDWARE', 'TRANSPORT'],
+      louver: ['LOUVER = LOUVERED = LVR when the surrounding door identity also matches'],
+      doorSwing: ['Required when the matched PDF door is LOUVER/LOUVERED/LVR or 1-3/4 inch thick', 'SWING IN = SI = S/I', 'SWING OUT = SO = S/O', 'Missing swing marker creates a warning without rejecting the match'],
     },
     dimension_tolerance_inches: DIMENSION_TOL_INCHES,
     matched_lines,
@@ -1112,7 +1354,7 @@ return [{
     warnings: [],
     ai_review_items,
     ai_review_payload: {
-      instruction: `Review only ambiguous description normalization using the normalized item descriptions and raw descriptions. Do not override numeric mismatches. Do not combine different products just because totals match. Dimension values may differ by at most ${DIMENSION_TOL_INCHES} inch after extraction.`,
+      instruction: `Review only ambiguous description normalization using individual normalized and raw line descriptions. Do not override numeric mismatches. Do not aggregate repeated product keys or combine different products just because totals match. Dimension values may differ by at most ${DIMENSION_TOL_INCHES} inch after extraction.`,
       items: ai_review_items,
     },
     summary,
