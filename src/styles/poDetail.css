@@ -525,13 +525,28 @@ body.dark-mode .pdh-warning-item {
 }
 
 .pon-meta {
-  align-items: center;
+  align-items: flex-start;
   color: var(--text-muted);
   display: flex;
   flex-wrap: wrap;
   font-size: 12px;
   font-weight: 600;
   gap: 8px 12px;
+}
+
+.pon-meta-history {
+  display: grid;
+  gap: 4px;
+}
+
+.pon-email-sent {
+  color: #15803d;
+}
+
+[data-theme="dark"] .pon-email-sent,
+.dark .pon-email-sent,
+body.dark-mode .pon-email-sent {
+  color: #86efac;
 }
 
 .pon-count {

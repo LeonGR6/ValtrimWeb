@@ -12,6 +12,7 @@ export default function PONotesPanel({
   saveState = {},
   updatedAt = '',
   value = '',
+  vendorEmailSentAt = '',
 }) {
   const hasUnsavedChanges = value !== persistedValue;
   const charactersRemaining = NOTE_MAX_LENGTH - value.length;
@@ -50,7 +51,14 @@ export default function PONotesPanel({
 
       <div className="pon-footer">
         <div className="pon-meta">
-          <span>{updatedAt ? `Last note edit ${updatedAt}` : 'No note edits yet'}</span>
+          <div className="pon-meta-history">
+            <span>{updatedAt ? `Last note edit ${updatedAt}` : 'No note edits yet'}</span>
+            {vendorEmailSentAt && (
+              <span className="pon-email-sent">
+                Email sent to vendor at: {vendorEmailSentAt}
+              </span>
+            )}
+          </div>
           <span className={charactersRemaining <= 120 ? 'pon-count pon-count--warning' : 'pon-count'}>
             {value.length}/{NOTE_MAX_LENGTH}
           </span>

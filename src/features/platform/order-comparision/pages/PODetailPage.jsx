@@ -9,11 +9,13 @@ import {
   fetchCurrentPurchaseOrderPdf,
   fetchPurchaseOrderByPoNumber,
   formatDisplayDate,
+  formatDisplayDateTime,
   formatWorkflowStatus,
   reconcilePurchaseOrderWithCurrentPdf,
   sendVendorIssuesEmail,
   updateQuickBooksPurchaseOrderLine,
   updatePurchaseOrderNote,
+  updatePurchaseOrderVendorEmailSentAt,
   updatePurchaseOrderWorkflowStatus,
 } from '../../../../services/purchaseOrdersApi.js';
 
@@ -1378,6 +1380,30 @@ export default function PODetailPage() {
         vendor: po.vendor,
       });
 
+      const sentAt = new Date().toISOString();
+
+      try {
+        const updatedOrder = await updatePurchaseOrderVendorEmailSentAt(poId, sentAt);
+        setOrder(updatedOrder);
+      } catch (timestampError) {
+        console.error('Vendor email was sent, but its timestamp could not be saved:', timestampError);
+        setOrder((currentOrder) => (
+          currentOrder
+            ? {
+                ...currentOrder,
+                vendorEmailSentAt: formatDisplayDateTime(sentAt),
+                vendorEmailSentAtRaw: sentAt,
+              }
+            : currentOrder
+        ));
+
+        addToast({
+          tone: 'warning',
+          title: 'Send time not saved',
+          message: 'The vendor email was sent, but its timestamp may disappear after a refresh.',
+        });
+      }
+
       addToast({
         tone: 'success',
         title: 'Vendor email sent',
@@ -1813,6 +1839,7 @@ export default function PODetailPage() {
             saveState={noteSaveState}
             updatedAt={order.noteUpdatedAt}
             value={noteDraft}
+            vendorEmailSentAt={order.vendorEmailSentAt}
             onChange={handleNoteDraftChange}
             onClear={handleClearNote}
             onReset={handleResetNote}

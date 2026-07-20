@@ -243,6 +243,8 @@ export const normalizePurchaseOrderRow = (row) => {
     note: row.internal_note ?? '',
     noteUpdatedAt: formatDisplayDateTime(row.note_updated_at),
     noteUpdatedAtRaw: row.note_updated_at ?? '',
+    vendorEmailSentAt: formatDisplayDateTime(row.vendor_email_sent_at),
+    vendorEmailSentAtRaw: row.vendor_email_sent_at ?? '',
     total: formatCurrency(row.total_pdf ?? row.total_qb),
     issues: String(issueCounts.total),
     issueCounts,
@@ -326,6 +328,27 @@ export const updatePurchaseOrderNote = async (poNumber, note) => {
 
   if (!rows[0]) {
     throw new Error(`Could not save the note for PO ${poNumber}.`);
+  }
+
+  return normalizePurchaseOrderRow(rows[0]);
+};
+
+export const updatePurchaseOrderVendorEmailSentAt = async (poNumber, sentAt) => {
+  const filter = encodeURIComponent(String(poNumber));
+  const normalizedSentAt = new Date(sentAt).toISOString();
+  const rows = await requestSupabase(`purchase_orders?po_number=eq.${filter}&select=*`, {
+    method: 'PATCH',
+    headers: {
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({
+      vendor_email_sent_at: normalizedSentAt,
+      updated_at: normalizedSentAt,
+    }),
+  });
+
+  if (!rows[0]) {
+    throw new Error(`Could not save the vendor email timestamp for PO ${poNumber}.`);
   }
 
   return normalizePurchaseOrderRow(rows[0]);
