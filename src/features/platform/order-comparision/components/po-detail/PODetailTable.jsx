@@ -59,7 +59,10 @@ const getBulkProgressLabel = (bulkUpdateState) => {
 };
 
 function ActionButton({ disabled = false, line, onEditQuickBooksLine }) {
-  if (!line.poLineNumber || !onEditQuickBooksLine) {
+  const canEditQbLine = Boolean(line.poLineNumber);
+  const canAddQbLine = line.status === 'missing-qb' && Boolean(line.pdfLineNumber);
+
+  if ((!canEditQbLine && !canAddQbLine) || !onEditQuickBooksLine) {
     return <span className="pdt-muted">-</span>;
   }
 
@@ -70,7 +73,7 @@ function ActionButton({ disabled = false, line, onEditQuickBooksLine }) {
       type="button"
       onClick={() => onEditQuickBooksLine(line)}
     >
-      Edit QB
+      {canAddQbLine ? 'Add QB' : 'Edit QB'}
     </button>
   );
 }

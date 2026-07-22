@@ -1351,6 +1351,35 @@ body.dark-mode .pdt-row--suggested td {
   padding: 12px;
 }
 
+.pdt-edit-description-field {
+  display: grid;
+  gap: 6px;
+}
+
+.pdt-edit-description-field span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pdt-edit-description-field textarea {
+  background: var(--card-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--text-main);
+  font: inherit;
+  line-height: 1.45;
+  min-height: 92px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.pdt-edit-description-field textarea:focus {
+  border-color: var(--table-link);
+  outline: none;
+}
+
 .pdt-edit-suggestion {
   align-items: center;
   background: color-mix(in srgb, #ede9fe 72%, var(--card-bg));

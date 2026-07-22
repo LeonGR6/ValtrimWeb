@@ -427,8 +427,12 @@ const isOneToOneRateFixLine = (line, aiDifferences = []) => (
   isOneToOnePriceOnlySuggestedLine(line, aiDifferences)
 );
 
+const isQbLineAddMode = (line) => (
+  line?.status === 'missing-qb' && !line?.poLineNumber
+);
+
 const shouldShowQbEditComparison = (line) => (
-  ['suggested', 'price-issue'].includes(line?.status)
+  isQbLineAddMode(line) || ['suggested', 'price-issue'].includes(line?.status)
 );
 
 const REPORTABLE_ISSUE_STATUSES = new Set([
@@ -932,7 +936,7 @@ export default function PODetailPage() {
   const [statusUpdateError, setStatusUpdateError] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [editingQbLine, setEditingQbLine] = useState(null);
-  const [qbLineDraft, setQbLineDraft] = useState({ qty: '', rate: '' });
+  const [qbLineDraft, setQbLineDraft] = useState({ description: '', qty: '', rate: '' });
   const [qbLineUpdateState, setQbLineUpdateState] = useState({
     error: '',
     isSaving: false,
@@ -999,6 +1003,7 @@ export default function PODetailPage() {
 
     setEditingQbLine(refreshedLine);
     setQbLineDraft({
+      description: refreshedLine.poDescription ?? '',
       qty: refreshedLine.poQty ?? '',
       rate: suggestedRate ?? refreshedLine.poUnitCost ?? '',
     });
@@ -1199,14 +1204,18 @@ export default function PODetailPage() {
   };
 
   const handleEditQbLine = (line) => {
+    const isAddMode = isQbLineAddMode(line);
     const suggestedRate = ['suggested', 'price-issue'].includes(line.status) && isSingleNumericValue(line.confUnitCost)
       ? line.confUnitCost
       : null;
 
     setEditingQbLine(line);
     setQbLineDraft({
-      qty: line.poQty ?? '',
-      rate: suggestedRate ?? line.poUnitCost ?? '',
+      description: isAddMode
+        ? line.vendorDescription?.description ?? ''
+        : line.poDescription ?? '',
+      qty: isAddMode ? line.confQty ?? '' : line.poQty ?? '',
+      rate: isAddMode ? line.confUnitCost ?? '' : suggestedRate ?? line.poUnitCost ?? '',
     });
     setQbLineUpdateState({
       error: '',
@@ -1631,8 +1640,10 @@ export default function PODetailPage() {
   const handleSaveQbLine = async () => {
     if (!editingQbLine) return;
 
+    const isAddMode = isQbLineAddMode(editingQbLine);
     const nextQty = Number(qbLineDraft.qty);
     const nextRate = Number(qbLineDraft.rate);
+    const nextDescription = String(qbLineDraft.description ?? '').trim();
 
     if (!Number.isFinite(nextQty) || nextQty <= 0 || !Number.isFinite(nextRate) || nextRate < 0) {
       const validationMessage = 'Enter a valid quantity and unit rate before saving.';
@@ -1649,6 +1660,21 @@ export default function PODetailPage() {
       return;
     }
 
+    if (isAddMode && !nextDescription) {
+      const validationMessage = 'Enter a QuickBooks description before adding this PDF line.';
+      setQbLineUpdateState({
+        error: validationMessage,
+        isSaving: false,
+        phase: 'idle',
+      });
+      addToast({
+        tone: 'error',
+        title: 'Missing description',
+        message: validationMessage,
+      });
+      return;
+    }
+
     setQbLineUpdateState({
       error: '',
       isSaving: true,
@@ -1659,19 +1685,25 @@ export default function PODetailPage() {
 
     try {
       await updateQuickBooksPurchaseOrderLine({
+        action: isAddMode ? 'add' : 'update',
         poNumber: poId,
-        qbLineNumber: editingQbLine.poLineNumber,
-        currentQty: editingQbLine.poQty,
-        currentRate: editingQbLine.poUnitCost,
+        qbLineNumber: isAddMode ? undefined : editingQbLine.poLineNumber,
+        pdfLineNumber: editingQbLine.pdfLineNumber,
+        pdfItemId: editingQbLine.vendorDescription?.itemId ?? editingQbLine.itemId,
+        currentQty: isAddMode ? undefined : editingQbLine.poQty,
+        currentRate: isAddMode ? undefined : editingQbLine.poUnitCost,
         nextQty,
         nextRate,
-        qbDescription: editingQbLine.poDescription,
+        qbDescription: nextDescription || editingQbLine.poDescription,
+        nextDescription,
       });
 
       addToast({
         tone: 'success',
         title: 'QuickBooks updated',
-        message: `Line ${editingQbLine.poLineNumber} of PO ${poId} was updated successfully.`,
+        message: isAddMode
+          ? `PDF line ${editingQbLine.pdfLineNumber} was added to PO ${poId}.`
+          : `Line ${editingQbLine.poLineNumber} of PO ${poId} was updated successfully.`,
       });
 
       setQbLineUpdateState({
@@ -1726,7 +1758,7 @@ export default function PODetailPage() {
         phase: 'idle',
       });
     } catch (error) {
-      console.error('Error updating QuickBooks line:', error);
+      console.error('Error saving QuickBooks line:', error);
 
       const failureTitle = {
         quickbooks: 'QuickBooks update failed',
@@ -1740,7 +1772,7 @@ export default function PODetailPage() {
         message: error.message || 'The operation could not be completed.',
       });
 
-      if (isStaleQuickBooksError(error)) {
+      if (!isAddMode && isStaleQuickBooksError(error)) {
         try {
           const updatedOrder = await refreshPurchaseOrderDetails();
           syncEditorWithOrder(updatedOrder, editingQbLine);
@@ -1750,19 +1782,22 @@ export default function PODetailPage() {
       }
 
       setQbLineUpdateState({
-        error: isStaleQuickBooksError(error)
+        error: !isAddMode && isStaleQuickBooksError(error)
           ? `${error.message} The latest PO data was refreshed. Review the line and save again.`
-          : error.message || 'Could not update the QuickBooks line.',
+          : error.message || 'Could not save the QuickBooks line.',
         isSaving: false,
         phase: 'idle',
       });
     }
   };
 
+  const isAddingQbLine = isQbLineAddMode(editingQbLine);
   const qbLineProgress = {
     'saving-qb': {
       title: 'Updating QuickBooks',
-      message: 'Saving the quantity and rate changes to the purchase order.',
+      message: isAddingQbLine
+        ? 'Adding the PDF line to the QuickBooks purchase order.'
+        : 'Saving the quantity, rate, and description changes to the purchase order.',
     },
     reconciling: {
       title: 'QuickBooks updated',
@@ -1773,7 +1808,7 @@ export default function PODetailPage() {
       message: 'Refreshing the purchase order details from the database.',
     },
     success: {
-      title: 'Line updated',
+      title: isAddingQbLine ? 'Line added' : 'Line updated',
       message: 'QuickBooks and the reconciled PDF data are now up to date.',
     },
   }[qbLineUpdateState.phase];
@@ -1783,7 +1818,7 @@ export default function PODetailPage() {
     reconciling: 'Reconciling PDF...',
     refreshing: 'Refreshing data...',
     success: 'Updated',
-  }[qbLineUpdateState.phase] || 'Save in QuickBooks';
+  }[qbLineUpdateState.phase] || (isAddingQbLine ? 'Add to QuickBooks' : 'Save in QuickBooks');
 
   const showQbEditComparison = shouldShowQbEditComparison(editingQbLine);
   const hasPdfRateSuggestion = showQbEditComparison && isSingleNumericValue(editingQbLine.confUnitCost);
@@ -2070,12 +2105,21 @@ export default function PODetailPage() {
       )}
 
       {editingQbLine && (
-        <div className="pdt-edit-overlay" role="dialog" aria-modal="true" aria-label="Edit QuickBooks line">
+        <div
+          className="pdt-edit-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={isAddingQbLine ? 'Add QuickBooks line' : 'Edit QuickBooks line'}
+        >
           <div className="pdt-edit-modal">
             <div className="pdt-edit-header">
               <div>
-                <div className="pdt-edit-eyebrow">QuickBooks line</div>
-                <h3>Update line {editingQbLine.poLineNumber}</h3>
+                <div className="pdt-edit-eyebrow">{isAddingQbLine ? 'New QuickBooks line' : 'QuickBooks line'}</div>
+                <h3>
+                  {isAddingQbLine
+                    ? `Add PDF line ${editingQbLine.pdfLineNumber}`
+                    : `Update line ${editingQbLine.poLineNumber}`}
+                </h3>
               </div>
               <button
                 className="pdt-edit-close"
@@ -2125,27 +2169,39 @@ export default function PODetailPage() {
                   </section>
 
                   <section>
-                    <div className="pdt-edit-section-title">QuickBooks line</div>
+                    <div className="pdt-edit-section-title">{isAddingQbLine ? 'New QuickBooks line' : 'QuickBooks line'}</div>
                     <div className="pdt-edit-description">
-                      {editingQbLine.poDescription || 'No QuickBooks description available.'}
+                      {isAddingQbLine
+                        ? qbLineDraft.description || 'Description will be created from the PDF line.'
+                        : editingQbLine.poDescription || 'No QuickBooks description available.'}
                     </div>
                     <dl className="pdt-edit-facts">
                       <div>
                         <dt>Qty</dt>
-                        <dd>{formatPlainNumber(editingQbLine.poQty)}</dd>
+                        <dd>{formatPlainNumber(isAddingQbLine ? qbLineDraft.qty : editingQbLine.poQty)}</dd>
                       </div>
                       <div>
                         <dt>Rate</dt>
-                        <dd>{formatCurrency(editingQbLine.poUnitCost) || '-'}</dd>
+                        <dd>{formatCurrency(isAddingQbLine ? qbLineDraft.rate : editingQbLine.poUnitCost) || '-'}</dd>
                       </div>
                     </dl>
                   </section>
                 </div>
               ) : (
                 <div className="pdt-edit-description">
-                  {editingQbLine.poDescription || 'No QuickBooks description available.'}
+                  {qbLineDraft.description || editingQbLine.poDescription || 'No QuickBooks description available.'}
                 </div>
               )}
+
+              <label className="pdt-edit-description-field">
+                <span>QB Description</span>
+                <textarea
+                  disabled={qbLineUpdateState.isSaving}
+                  rows={4}
+                  value={qbLineDraft.description}
+                  onChange={(event) => handleQbLineDraftChange('description', event.target.value)}
+                />
+              </label>
 
               <div className="pdt-edit-grid">
                 <label>

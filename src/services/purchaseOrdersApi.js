@@ -379,13 +379,17 @@ const isNonBlockingPersistenceWarning = (payload) => (
 );
 
 export const updateQuickBooksPurchaseOrderLine = async ({
+  action = 'update',
   poNumber,
   qbLineNumber,
+  pdfLineNumber,
+  pdfItemId,
   currentQty,
   currentRate,
   nextQty,
   nextRate,
   qbDescription,
+  nextDescription,
 }) => {
   const response = await fetch(QB_LINE_UPDATE_WEBHOOK, {
     method: 'POST',
@@ -394,17 +398,21 @@ export const updateQuickBooksPurchaseOrderLine = async ({
       Accept: 'application/json',
     },
     body: JSON.stringify({
+      action,
       po_number: String(poNumber),
       qb_line: qbLineNumber,
+      pdf_line: pdfLineNumber,
+      pdf_item_id: pdfItemId,
       current_qty: currentQty,
       current_rate: currentRate,
       next_qty: nextQty,
       next_rate: nextRate,
       qb_description: qbDescription,
+      next_description: nextDescription,
     }),
   });
 
-  return readWebhookResponse(response, 'Could not update the QuickBooks purchase order line.');
+  return readWebhookResponse(response, 'Could not save the QuickBooks purchase order line.');
 };
 
 export const sendVendorIssuesEmail = async (payload) => {
@@ -435,10 +443,21 @@ export const reconcilePurchaseOrderWithCurrentPdf = async (poNumber) => {
   });
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('force_reconcile', 'true');
+  formData.append('forceReconcile', 'true');
 
-  const response = await fetch(VENDOR_PDF_UPLOAD_WEBHOOK, {
+  const forcedUploadUrl = new URL(
+    VENDOR_PDF_UPLOAD_WEBHOOK,
+    globalThis.location?.origin || 'http://localhost'
+  );
+  forcedUploadUrl.searchParams.set('force_reconcile', 'true');
+
+  const response = await fetch(forcedUploadUrl.toString(), {
     method: 'POST',
-    headers: await getWebhookAuthHeaders(),
+    headers: {
+      ...(await getWebhookAuthHeaders()),
+      Accept: 'application/json',
+    },
     body: formData,
   });
 
@@ -446,6 +465,10 @@ export const reconcilePurchaseOrderWithCurrentPdf = async (poNumber) => {
     response,
     'Could not reconcile the purchase order after updating QuickBooks.'
   );
+
+  if (payload?.status === 'PO_ALREADY_EXISTS') {
+    throw new Error('The purchase order already exists response was returned instead of running a forced reconciliation.');
+  }
 
   if (payload?.success === false || payload?.status === 'FLOW_ERROR') {
     if (isNonBlockingPersistenceWarning(payload)) {
