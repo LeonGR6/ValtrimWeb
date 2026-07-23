@@ -1,10 +1,8 @@
 import '../../../../../styles/poDetail.css';
 
 const WORKFLOW_STATUS_OPTIONS = [
-  { value: 'DRAFT', label: 'Draft' },
   { value: 'PENDING', label: 'Pending' },
   { value: 'APPROVED', label: 'Approved' },
-  { value: 'REJECTED', label: 'Rejected' },
   { value: 'NEEDS_REVIEW', label: 'Needs Review' },
 ];
 

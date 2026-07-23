@@ -267,7 +267,13 @@ const summary = compactObject({
   description_mismatches_count: discrepancies.filter((line) => line.type === 'DESCRIPTION_MISMATCH').length,
   pdf_not_in_qb: discrepancies.filter((line) => line.type === 'LINE_NOT_FOUND_IN_QB').length,
   qb_not_in_pdf: discrepancies.filter((line) => line.type === 'LINE_NOT_FOUND_IN_PDF').length,
-  bundle_matches_count: matchedLines.filter((line) => line.match_rule === 'BYPASS_TRACK_HARDWARE_BUNDLE').length,
+  bundle_matches_count: matchedLines.filter((line) => (
+    line.match_rule === 'BYPASS_TRACK_HARDWARE_BUNDLE' ||
+    line.match_rule === 'ABS_HOMEOWNER_KEYS_BUNDLE'
+  )).length,
+  abs_homeowner_keys_bundle_count: [...matchedLines, ...discrepancies].filter((line) => (
+    line.match_rule === 'ABS_HOMEOWNER_KEYS_BUNDLE'
+  )).length,
   warnings_count: warnings.length,
   ai_review_status: aiReview.status,
   ai_corrections_count: compactArray(aiReview.corrections).length,

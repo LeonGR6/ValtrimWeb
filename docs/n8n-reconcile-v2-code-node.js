@@ -869,6 +869,222 @@ function matchBypassBundles(pdfLines, qbLines) {
   return matches;
 }
 
+function absLineIdentity(line) {
+  return cleanText([
+    line?.item_id,
+    line?.sku,
+    line?.description,
+    line?.source_description,
+    line?.item_description,
+    line?.normalized?.itemDescription,
+  ].filter(hasValue).join(' '));
+}
+
+function isAmericanBuildingSupplyOrder() {
+  const supplier = cleanText(
+    pdfData.supplier ||
+    qbData.qb_vendor_name ||
+    input.supplier ||
+    input.vendor_name
+  );
+
+  return /\bAMERICAN\s+BUILDING\s+SUPPLY\b/.test(supplier);
+}
+
+function isAbsCutKeysLine(line) {
+  const value = absLineIdentity(line);
+
+  return (
+    /\b9LAB003\b/.test(value) ||
+    /\bCUT[\s-]*KEYS?\s+STANDARD\b/.test(value)
+  );
+}
+
+function isAbsSchlageKeyblankLine(line) {
+  const value = absLineIdentity(line);
+
+  return (
+    /\b9SCH35100C\b/.test(value) ||
+    /\bSCH(?:LAGE)?[\s,-]*KEY\s*BLANK\b/.test(value)
+  );
+}
+
+function isAbsHomeownerKeysQbLine(line) {
+  const value = absLineIdentity(line);
+
+  return (
+    /\bHOME\s*OWNERS?\s+KEYS?\b/.test(value) ||
+    /\bHOMEOWNERS?\s+KEYS?\b/.test(value)
+  );
+}
+
+function buildAbsHomeownerKeysPdfBundles(pdfLines) {
+  const cutKeysLines = pdfLines
+    .filter((line) => isAbsCutKeysLine(line) && toNumber(line.remainingQty) > QTY_TOL)
+    .sort((a, b) => lineSortValue(a) - lineSortValue(b));
+  const keyblankLines = pdfLines
+    .filter((line) => isAbsSchlageKeyblankLine(line) && toNumber(line.remainingQty) > QTY_TOL)
+    .sort((a, b) => lineSortValue(a) - lineSortValue(b));
+  const usedKeyblankLines = new Set();
+  const bundles = [];
+
+  for (const cutKeysLine of cutKeysLines) {
+    const qty = toNumber(cutKeysLine.remainingQty);
+    const keyblankLine = keyblankLines.find((line) => (
+      !usedKeyblankLines.has(line) &&
+      qtyMatch(line.remainingQty, qty)
+    ));
+
+    if (!keyblankLine) continue;
+
+    usedKeyblankLines.add(keyblankLine);
+    bundles.push({
+      cutKeysLine,
+      keyblankLine,
+      logicalQty: qty,
+    });
+  }
+
+  return bundles;
+}
+
+function absHomeownerKeysMessage({ hasQb, qtyOk, unitOk, amountOk }) {
+  if (!hasQb) {
+    return 'American Building Supply key cutting and Schlage keyblank components were grouped, but no equivalent homeowner keys line was found in QuickBooks.';
+  }
+
+  if (qtyOk && unitOk && amountOk) {
+    return 'American Building Supply key cutting and Schlage keyblank components match the QuickBooks homeowner keys line.';
+  }
+
+  if (!qtyOk && !unitOk) {
+    return 'American Building Supply homeowner keys bundle has different quantity and combined unit price in the PDF and QuickBooks.';
+  }
+
+  if (!qtyOk) {
+    return 'American Building Supply homeowner keys bundle has a different logical quantity in the PDF and QuickBooks.';
+  }
+
+  if (!unitOk) {
+    return 'American Building Supply homeowner keys bundle has the same logical quantity, but the combined PDF unit price differs from QuickBooks.';
+  }
+
+  return 'American Building Supply homeowner keys bundle has matching quantity and combined unit price, but the total differs.';
+}
+
+function buildAbsHomeownerKeysRow({ bundle, qbLine }) {
+  const { cutKeysLine, keyblankLine, logicalQty } = bundle;
+  const pdfBundleLines = [cutKeysLine, keyblankLine];
+  const pdfTotal = roundMoney(
+    pdfBundleLines.reduce((sum, line) => sum + toNumber(line.amount), 0)
+  );
+  const effectiveUnitPrices = pdfBundleLines.map((line) => (
+    roundMoney(toNumber(line.amount) / logicalQty)
+  ));
+  const combinedUnitPrice = roundMoney(pdfTotal / logicalQty);
+  const hasQb = Boolean(qbLine);
+  const qtyOk = hasQb && qtyMatch(logicalQty, qbLine.qty);
+  const unitOk = hasQb && moneyMatch(combinedUnitPrice, qbLine.unitPrice);
+  const amountOk = hasQb && moneyMatch(pdfTotal, qbLine.amount);
+  const isMatch = qtyOk && unitOk && amountOk;
+  const qtyDifference = hasQb ? roundMoney(logicalQty - qbLine.qty) : null;
+  const unitPriceDifference = hasQb ? roundMoney(combinedUnitPrice - qbLine.unitPrice) : null;
+  const amountDifference = hasQb ? roundMoney(pdfTotal - qbLine.amount) : pdfTotal;
+  let type;
+
+  if (!hasQb) type = 'LINE_NOT_FOUND_IN_QB';
+  else if (!qtyOk && !unitOk) type = 'QTY_PRICE_MISMATCH';
+  else if (!qtyOk) type = 'QTY_MISMATCH';
+  else if (!unitOk) type = 'PRICE_MISMATCH';
+  else if (!amountOk) type = 'TOTAL_MISMATCH';
+
+  const row = {
+    status: isMatch ? 'MATCHED' : undefined,
+    type,
+    source: hasQb ? 'BOTH' : 'PDF',
+    match_type: 'MANY_PDF_TO_ONE_QB',
+    match_rule: 'ABS_HOMEOWNER_KEYS_BUNDLE',
+    product_key: 'ABS_HOMEOWNER_KEYS_BUNDLE',
+    product_label: 'American Building Supply homeowner keys bundle',
+    item_description: 'CUT KEYS STANDARD + SCHLAGE KEYBLANK',
+    pdf_line: joinValues(pdfBundleLines.map((line) => line.line)),
+    pdf_item_id: joinValues(pdfBundleLines.map((line) => line.item_id)),
+    pdf_item_description: joinValues(
+      pdfBundleLines.map((line) => line.item_description || line.normalized?.itemDescription),
+      ' / '
+    ),
+    pdf_description: joinValues(pdfBundleLines.map((line) => line.description), ' / '),
+    pdf_qty: joinValues([logicalQty, logicalQty]),
+    pdf_unit_price: joinValues(effectiveUnitPrices),
+    pdf_extd_price: pdfTotal,
+    qb_line: qbLine?.line ?? null,
+    qb_item_description: qbLine?.item_description ?? null,
+    qb_description: qbLine?.description ?? null,
+    qb_qty: qbLine?.qty ?? null,
+    qb_rate: qbLine?.unitPrice ?? null,
+    qb_amount: qbLine?.amount ?? null,
+    qty_difference: qtyDifference,
+    excess_side: hasQb && !qtyOk ? (qtyDifference > 0 ? 'PDF' : 'QB') : null,
+    unit_price_difference: unitPriceDifference,
+    amount_difference: amountDifference,
+    variance: amountDifference,
+    match_score: isMatch ? 100 : undefined,
+    match_similarity: isMatch ? 1 : undefined,
+    message: absHomeownerKeysMessage({ hasQb, qtyOk, unitOk, amountOk }),
+    pdf_allocations: pdfBundleLines.map((line, index) => ({
+      line: String(line.line),
+      item_id: line.item_id,
+      item_description: line.item_description,
+      description: line.description,
+      qty_used: logicalQty,
+      unit_price: effectiveUnitPrices[index],
+      extd_price: roundMoney(line.amount),
+      source_qty: line.qty,
+    })),
+    qb_allocations: hasQb
+      ? [{
+          line: String(qbLine.line),
+          item_description: qbLine.item_description,
+          description: qbLine.description,
+          qty: qbLine.qty,
+          rate: qbLine.unitPrice,
+          amount: qbLine.amount,
+        }]
+      : [],
+  };
+
+  return row;
+}
+
+function matchAmericanBuildingSupplyHomeownerKeysBundles(pdfLines, qbLines) {
+  if (!isAmericanBuildingSupplyOrder()) return [];
+
+  const pdfBundles = buildAbsHomeownerKeysPdfBundles(pdfLines);
+  const qbCandidates = qbLines
+    .filter((line) => !line.used && isAbsHomeownerKeysQbLine(line))
+    .sort((a, b) => lineSortValue(a) - lineSortValue(b));
+  const rows = [];
+
+  for (const bundle of pdfBundles) {
+    const availableQbLines = qbCandidates.filter((line) => !line.used);
+    const qbLine = availableQbLines.sort((a, b) => {
+      const aQtyDifference = Math.abs(bundle.logicalQty - toNumber(a.qty));
+      const bQtyDifference = Math.abs(bundle.logicalQty - toNumber(b.qty));
+
+      if (aQtyDifference !== bQtyDifference) return aQtyDifference - bQtyDifference;
+      return lineSortValue(a) - lineSortValue(b);
+    })[0] || null;
+
+    rows.push(buildAbsHomeownerKeysRow({ bundle, qbLine }));
+    allocatePdfLine(bundle.cutKeysLine, bundle.logicalQty);
+    allocatePdfLine(bundle.keyblankLine, bundle.logicalQty);
+
+    if (qbLine) qbLine.used = true;
+  }
+
+  return rows;
+}
+
 function residualPdfLines(pdfLines) {
   return pdfLines
     .filter((line) => toNumber(line.remainingQty) > QTY_TOL)
@@ -1215,7 +1431,11 @@ function buildFinancialDescriptionConflicts(discrepancies) {
 
 const pdfLines = (Array.isArray(pdfData.line_items) ? pdfData.line_items : []).map(normalizePdfLine);
 const qbLines = (Array.isArray(qbData.qb_line_items) ? qbData.qb_line_items : []).map(normalizeQbLine);
-const bundleMatches = matchBypassBundles(pdfLines, qbLines);
+const bypassBundleMatches = matchBypassBundles(pdfLines, qbLines);
+const absHomeownerKeysRows = matchAmericanBuildingSupplyHomeownerKeysBundles(pdfLines, qbLines);
+const absHomeownerKeysMatches = absHomeownerKeysRows.filter((row) => row.status === 'MATCHED');
+const absHomeownerKeysDiscrepancies = absHomeownerKeysRows.filter((row) => row.status !== 'MATCHED');
+const bundleMatches = [...bypassBundleMatches, ...absHomeownerKeysMatches];
 const groups = new Map();
 
 for (const line of residualPdfLines(pdfLines)) {
@@ -1227,8 +1447,8 @@ for (const line of qbLines.filter((qbLine) => !qbLine.used)) {
 }
 
 const matched_lines = [...bundleMatches];
-const discrepancias = [];
-const comparison_rows = [...bundleMatches];
+const discrepancias = [...absHomeownerKeysDiscrepancies];
+const comparison_rows = [...bundleMatches, ...absHomeownerKeysDiscrepancies];
 
 for (const group of [...groups.values()].sort((a, b) => String(a.product_key).localeCompare(String(b.product_key)))) {
   const { pairs, pdfOnly, qbOnly } = pairGroupLines(group.pdf, group.qb);
@@ -1297,6 +1517,7 @@ const summary = {
   pdf_not_in_qb: discrepancias.filter((line) => line.type === 'LINE_NOT_FOUND_IN_QB').length,
   qb_not_in_pdf: discrepancias.filter((line) => line.type === 'LINE_NOT_FOUND_IN_PDF').length,
   bundle_matches_count: bundleMatches.length,
+  abs_homeowner_keys_bundle_count: absHomeownerKeysRows.length,
   ai_review_items_count: ai_review_items.length,
   total_pdf: totalPdf,
   total_qb: totalQb,
@@ -1330,20 +1551,21 @@ return [{
       '20min, 20/MIN, 20MIN, and APPLY 20MIN LABEL normalize to 20MIN_FIRE_LABEL.',
       'Interior doors and prefit wood jambs use direct hand matching; Therma-Tru exterior entry doors and entry units with metal/Timely prep use reverse hand logic between PDF and QuickBooks.',
       'Louver doors are reconciled one-to-one by size, thickness, model/style, quantity, unit price, and total; missing QuickBooks LH/RH does not block a match.',
-      'Repeated product keys are paired one-to-one and are never aggregated, except for the explicit bypass track + hardware bundle rule.',
+      'Repeated product keys are paired one-to-one and are never aggregated, except for explicit deterministic bundle rules.',
       'Explicit door model differences remain DESCRIPTION_MISMATCH even when financial values match.',
       'Matched PDF doors containing LOUVER/LOUVERED/LVR or a 1-3/4-inch thickness require a QuickBooks swing marker (SWING IN, SI, S/I, SWING OUT, SO, or S/O); a missing marker remains a match but creates an actionable warning during final cleanup.',
       'Same product plus same unit price but different quantity becomes QTY_MISMATCH.',
       'Same product plus same quantity but different unit price becomes PRICE_MISMATCH.',
       'Financial totals alone never create a product match.',
-      'Bypass track plus hardware kit is the only allowed automatic bundle match.',
+      'Bypass track plus hardware kit is an allowed automatic bundle match.',
+      'For American Building Supply only, CUT KEYS STANDARD plus SCHLAGE KEYBLANK with equal PDF quantities form one homeowner keys bundle. The shared quantity is compared once and is never summed; each net PDF unit price is derived from extended price divided by quantity, and the actual PDF extended prices are summed before comparison with the equivalent QuickBooks homeowner keys line.',
     ],
     normalization_dictionary: {
       size: ['2-8 = 2/8', '2-10 = 2/10', '6-8 = 6/8', '8-0 = 8/0', '80 inches = 6/8', '96 inches = 8/0'],
       prep: ['S/B = SB = SINGLE BORE = SINGLE_BORE', 'D/B = DB = DBL BORE = DOUBLE BORE = DOUBLE_BORE'],
       fire: ['20min Rating = 20MIN = 20/MIN = APPLY 20MIN LABEL = 20MIN_FIRE_LABEL'],
       casing: ['CSG = CASING', '120MUL = 120CSG = 120', '711 = 711'],
-      productTypes: ['ENTRY_UNIT', 'INTERIOR_DOOR', 'INTERIOR_DOOR_LOUVER', 'PREFIT_JAMB', 'CASED_OPENING', 'BYPASS_TRACK', 'BYPASS_HARDWARE', 'TRANSPORT'],
+      productTypes: ['ENTRY_UNIT', 'INTERIOR_DOOR', 'INTERIOR_DOOR_LOUVER', 'PREFIT_JAMB', 'CASED_OPENING', 'BYPASS_TRACK', 'BYPASS_HARDWARE', 'ABS_HOMEOWNER_KEYS_BUNDLE', 'TRANSPORT'],
       louver: ['LOUVER = LOUVERED = LVR when the surrounding door identity also matches'],
       doorSwing: ['Required when the matched PDF door is LOUVER/LOUVERED/LVR or 1-3/4 inch thick', 'SWING IN = SI = S/I', 'SWING OUT = SO = S/O', 'Missing swing marker creates a warning without rejecting the match'],
     },
@@ -1354,7 +1576,7 @@ return [{
     warnings: [],
     ai_review_items,
     ai_review_payload: {
-      instruction: `Review only ambiguous description normalization using individual normalized and raw line descriptions. Do not override numeric mismatches. Do not aggregate repeated product keys or combine different products just because totals match. Dimension values may differ by at most ${DIMENSION_TOL_INCHES} inch after extraction.`,
+      instruction: `Review only ambiguous description normalization using individual normalized and raw line descriptions. Do not override numeric mismatches. Do not aggregate repeated product keys or combine different products just because totals match. Explicit deterministic bundles, including American Building Supply homeowner keys, are resolved before AI review. Dimension values may differ by at most ${DIMENSION_TOL_INCHES} inch after extraction.`,
       items: ai_review_items,
     },
     summary,

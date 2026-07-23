@@ -12,6 +12,60 @@ import UploadVendorModal from '../components/UploadVendorModal';
 import { findPoNumber } from '../utils/uploadVendorResponse';
 
 const dateSortKeys = ['requiredDate', 'vendorShipDate', 'ackDate'];
+const viewPreferencesStorageKey = 'valtrim-order-comparison-view';
+const defaultViewPreferences = {
+  activeTab: 'All',
+  search: '',
+  sortConfig: { key: 'poNumber', direction: 'asc' },
+};
+const validTabs = new Set([
+  'All',
+  'Pending',
+  'Approved',
+  'Needs Review',
+  'Backordered',
+]);
+const validSortKeys = new Set([
+  'status',
+  'poNumber',
+  'vendor',
+  'job',
+  'phaseLots',
+  'requiredDate',
+  'vendorShipDate',
+  'ackDate',
+  'updatedAt',
+  'issues',
+  'total',
+]);
+
+const getInitialViewPreferences = () => {
+  if (typeof window === 'undefined') {
+    return defaultViewPreferences;
+  }
+
+  try {
+    const storedPreferences = JSON.parse(
+      window.localStorage.getItem(viewPreferencesStorageKey),
+    );
+    const storedSort = storedPreferences?.sortConfig;
+
+    return {
+      activeTab: validTabs.has(storedPreferences?.activeTab)
+        ? storedPreferences.activeTab
+        : defaultViewPreferences.activeTab,
+      search: typeof storedPreferences?.search === 'string'
+        ? storedPreferences.search
+        : defaultViewPreferences.search,
+      sortConfig: validSortKeys.has(storedSort?.key)
+        && (storedSort?.direction === 'asc' || storedSort?.direction === 'desc')
+        ? storedSort
+        : defaultViewPreferences.sortConfig,
+    };
+  } catch {
+    return defaultViewPreferences;
+  }
+};
 
 const parseDateValue = (value) => {
   if (!value) return 0;
@@ -77,9 +131,8 @@ const getBatchResults = (uploadPayload) => {
 export default function OrderComparisonPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('All');
-  const [search, setSearch] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: 'poNumber', direction: 'asc' });
+  const [viewPreferences, setViewPreferences] = useState(getInitialViewPreferences);
+  const { activeTab, search, sortConfig } = viewPreferences;
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,12 +141,9 @@ export default function OrderComparisonPage() {
 
   const translatedTabs = useMemo(() => [
     { id: 'All', label: t('orderComparison.tabs.all') },
-    { id: 'Draft', label: t('orderComparison.tabs.draft') },
     { id: 'Pending', label: t('orderComparison.tabs.pending') },
     { id: 'Approved', label: t('orderComparison.tabs.approved') },
-    { id: 'Awaiting Confirmation', label: t('orderComparison.tabs.awaiting') },
     { id: 'Needs Review', label: t('orderComparison.tabs.needs') },
-    { id: 'Issues', label: t('orderComparison.tabs.issues') },
     { id: 'Backordered', label: t('orderComparison.tabs.backordered') },
   ], [t]);
 
@@ -115,6 +165,17 @@ export default function OrderComparisonPage() {
   useEffect(() => {
     Promise.resolve().then(loadOrders);
   }, [loadOrders]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        viewPreferencesStorageKey,
+        JSON.stringify(viewPreferences),
+      );
+    } catch {
+      // Keep the table usable when storage is disabled or unavailable.
+    }
+  }, [viewPreferences]);
 
   const filteredOrders = useMemo(() => {
     const visibleOrders = orders.filter((order) => {
@@ -152,16 +213,38 @@ export default function OrderComparisonPage() {
   }, [activeTab, search, orders, sortConfig]);
 
   const handleSort = (key) => {
-    setSortConfig((currentSort) => {
+    setViewPreferences((currentPreferences) => {
+      const currentSort = currentPreferences.sortConfig;
+
       if (currentSort.key !== key) {
-        return { key, direction: 'asc' };
+        return {
+          ...currentPreferences,
+          sortConfig: { key, direction: 'asc' },
+        };
       }
 
       return {
-        key,
-        direction: currentSort.direction === 'asc' ? 'desc' : 'asc',
+        ...currentPreferences,
+        sortConfig: {
+          key,
+          direction: currentSort.direction === 'asc' ? 'desc' : 'asc',
+        },
       };
     });
+  };
+
+  const handleActiveTabChange = (activeTabValue) => {
+    setViewPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      activeTab: activeTabValue,
+    }));
+  };
+
+  const handleSearchChange = (searchValue) => {
+    setViewPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      search: searchValue,
+    }));
   };
 
   const handleUploadSuccess = async (uploadPayload) => {
@@ -251,14 +334,14 @@ export default function OrderComparisonPage() {
 
       <StatusTabs
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleActiveTabChange}
         orders={orders}
         tabsConfig={translatedTabs}
       />
 
       <SearchBar
         search={search}
-        setSearch={setSearch}
+        setSearch={handleSearchChange}
       />
 
       {loadError && (
