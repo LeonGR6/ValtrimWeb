@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { canModifyPurchaseOrders } from '../../../../auth/permissions.js';
+import { useAuth } from '../../../../contexts/AuthContext.jsx';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
 import PODetailHeader from '../components/po-detail/PODetailHeader.jsx';
 import PONotesPanel from '../components/po-detail/PONotesPanel.jsx';
@@ -920,10 +923,13 @@ const buildDetailFromOrder = (order, poId) => {
 };
 
 export default function PODetailPage() {
+  const { t } = useTranslation();
+  const { user } = useAuth();
   const { addToast } = useToast();
   const { poId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const canManagePurchaseOrders = canModifyPurchaseOrders(user);
   const [order, setOrder] = useState(location.state?.order || null);
   const [noteDraft, setNoteDraft] = useState(location.state?.order?.note || '');
   const [noteSaveState, setNoteSaveState] = useState({
@@ -1857,15 +1863,23 @@ export default function PODetailPage() {
         </div>
       )}
 
+      {!canManagePurchaseOrders && (
+        <div className="po-read-only-notice" role="status">
+          <strong>{t('orderComparison.readOnly.badge')}</strong>
+          <span>{t('orderComparison.readOnly.description')}</span>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="order-state">Loading purchase order...</div>
       ) : order ? (
         <>
           <PODetailHeader
             po={po}
+            readOnly={!canManagePurchaseOrders}
             workflowStatusValue={order.workflowStatusRaw || 'PENDING'}
             isUpdatingStatus={isUpdatingStatus}
-            onWorkflowStatusChange={handleWorkflowStatusChange}
+            onWorkflowStatusChange={canManagePurchaseOrders ? handleWorkflowStatusChange : undefined}
             onViewPdf={handleViewPdf}
           />
           <PONotesPanel
@@ -1875,10 +1889,11 @@ export default function PODetailPage() {
             updatedAt={order.noteUpdatedAt}
             value={noteDraft}
             vendorEmailSentAt={order.vendorEmailSentAt}
-            onChange={handleNoteDraftChange}
-            onClear={handleClearNote}
-            onReset={handleResetNote}
-            onSave={handleSaveNote}
+            readOnly={!canManagePurchaseOrders}
+            onChange={canManagePurchaseOrders ? handleNoteDraftChange : undefined}
+            onClear={canManagePurchaseOrders ? handleClearNote : undefined}
+            onReset={canManagePurchaseOrders ? handleResetNote : undefined}
+            onSave={canManagePurchaseOrders ? handleSaveNote : undefined}
           />
           <PODetailTable
             bulkApplicableLineIds={priceOnlyRateFixIds}
@@ -1886,12 +1901,13 @@ export default function PODetailPage() {
             bulkUpdateState={bulkRateUpdateState}
             issueSelectionDisabled={vendorIssueEmailDraft.isSending}
             lines={lines}
-            onApplyBulkRateFixes={handleApplySelectedRateFixes}
-            onClearIssueSelection={handleClearVendorIssueSelection}
-            onEditQuickBooksLine={handleEditQbLine}
-            onOpenIssueEmailComposer={handleOpenVendorIssueEmail}
-            onToggleAllIssueLines={handleToggleAllVendorIssueLines}
-            onToggleIssueLine={handleToggleVendorIssueLine}
+            readOnly={!canManagePurchaseOrders}
+            onApplyBulkRateFixes={canManagePurchaseOrders ? handleApplySelectedRateFixes : undefined}
+            onClearIssueSelection={canManagePurchaseOrders ? handleClearVendorIssueSelection : undefined}
+            onEditQuickBooksLine={canManagePurchaseOrders ? handleEditQbLine : undefined}
+            onOpenIssueEmailComposer={canManagePurchaseOrders ? handleOpenVendorIssueEmail : undefined}
+            onToggleAllIssueLines={canManagePurchaseOrders ? handleToggleAllVendorIssueLines : undefined}
+            onToggleIssueLine={canManagePurchaseOrders ? handleToggleVendorIssueLine : undefined}
             reportableIssueLineIds={reportableIssueLineIds}
             selectedIssueLineIds={selectedVendorIssueLineIds}
             totalResults={totalResults}
@@ -1947,7 +1963,7 @@ export default function PODetailPage() {
         </div>
       )}
 
-      {vendorIssueEmailDraft.isOpen && (
+      {canManagePurchaseOrders && vendorIssueEmailDraft.isOpen && (
         <div className="pdt-edit-overlay" role="dialog" aria-modal="true" aria-label="Email selected vendor issues">
           <div className="pdt-email-modal">
             <div className="pdt-edit-header">
@@ -2104,7 +2120,7 @@ export default function PODetailPage() {
         </div>
       )}
 
-      {editingQbLine && (
+      {canManagePurchaseOrders && editingQbLine && (
         <div
           className="pdt-edit-overlay"
           role="dialog"

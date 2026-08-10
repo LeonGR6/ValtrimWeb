@@ -1,15 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import i18n from '../i18n.js';
+import { normalizeAppRoles } from '../auth/permissions.js';
 import { assertSupabaseConfig } from '../services/supabaseClient.js';
 
 const AuthContext = createContext(null);
 
 function normalizeRoles(user) {
-    const rawRoles = user?.app_metadata?.roles ?? user?.app_metadata?.role ?? user?.user_metadata?.roles;
-    const roles = Array.isArray(rawRoles) ? rawRoles : [rawRoles].filter(Boolean);
-
-    return roles.map((role) => String(role).toLowerCase());
+    return normalizeAppRoles(user?.app_metadata);
 }
 
 function normalizeSupabaseUser(user) {

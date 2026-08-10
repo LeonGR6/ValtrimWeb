@@ -3,6 +3,10 @@
     "title": "Purchase Orders",
     "subtitle": "Compare and manage procurement requests",
     "pdfButton" : "Upload Vendor PDF",
+    "readOnly": {
+      "badge": "Read-only access",
+      "description": "You can view purchase orders and their details, but you cannot upload or modify them."
+    },
     "tabs": {
       "all": "All",
       "draft": "Draft",

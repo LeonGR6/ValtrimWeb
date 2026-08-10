@@ -74,6 +74,7 @@ function IssueSummary({ counts, totalIssues = 0 }) {
 
 export default function MainTable({ data, sortConfig, onSort, onDelete, deletingPoNumber }) {
   const navigate = useNavigate();
+  const canDelete = Boolean(onDelete);
 
   return (
     <div className="table-wrapper">
@@ -94,7 +95,7 @@ export default function MainTable({ data, sortConfig, onSort, onDelete, deleting
               <th><SortableHeader columnKey="updatedAt" sortConfig={sortConfig} onSort={onSort} /></th>
               <th><SortableHeader columnKey="issues" sortConfig={sortConfig} onSort={onSort} /></th>
               <th><SortableHeader columnKey="total" sortConfig={sortConfig} onSort={onSort} /></th>
-              <th>Actions</th>
+              {canDelete && <th>Actions</th>}
             </tr>
           </thead>
 
@@ -133,18 +134,20 @@ export default function MainTable({ data, sortConfig, onSort, onDelete, deleting
                 <td>{order.updatedAt || '-'}</td>
                 <td><IssueSummary counts={order.issueCounts} totalIssues={order.issues} /></td>
                 <td>{order.total}</td>
-                <td>
-                  <button
-                    type="button"
-                    className="order-delete-btn"
-                    disabled={deletingPoNumber === order.poNumber}
-                    title={`Delete PO #${order.poNumber}`}
-                    aria-label={`Delete PO #${order.poNumber}`}
-                    onClick={() => onDelete?.(order)}
-                  >
-                    <Icon name="trash" className="order-delete-icon" />
-                  </button>
-                </td>
+                {canDelete && (
+                  <td>
+                    <button
+                      type="button"
+                      className="order-delete-btn"
+                      disabled={deletingPoNumber === order.poNumber}
+                      title={`Delete PO #${order.poNumber}`}
+                      aria-label={`Delete PO #${order.poNumber}`}
+                      onClick={() => onDelete(order)}
+                    >
+                      <Icon name="trash" className="order-delete-icon" />
+                    </button>
+                  </td>
+                )}
 
               </tr>
             ))}

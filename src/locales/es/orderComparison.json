@@ -3,6 +3,10 @@
     "title": "Ordenes de Compra",
     "subtitle": "Compara y gestiona las solicitudes de adquisiciones",
     "pdfButton" : "Subir PDF del Proveedor",
+    "readOnly": {
+      "badge": "Acceso de solo lectura",
+      "description": "Puedes consultar las órdenes de compra y sus detalles, pero no subirlas ni modificarlas."
+    },
     "tabs": {
       "all": "Todos",
       "draft": "Borrador",

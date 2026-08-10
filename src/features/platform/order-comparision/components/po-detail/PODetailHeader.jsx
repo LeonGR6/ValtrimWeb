@@ -46,6 +46,7 @@ function formatCurrencyDisplay(value) {
 
 export default function PODetailHeader({
   po,
+  readOnly = false,
   workflowStatusValue = 'PENDING',
   isUpdatingStatus = false,
   onViewPdf,
@@ -69,21 +70,28 @@ export default function PODetailHeader({
           <h2 className="pdh-po-number">PO #{po.poNumber}</h2>
         </div>
         <div className="pdh-status-group">
-          <label className={`pdh-status-select-wrap status-badge status-${workflowStatusClass}`}>
-            <span>STATUS:</span>
-            <select
-              className="pdh-status-select"
-              value={workflowStatusValue}
-              disabled={isUpdatingStatus}
-              onChange={handleStatusChange}
-            >
-              {WORKFLOW_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {readOnly ? (
+            <span className={`pdh-status-readonly status-badge status-${workflowStatusClass}`}>
+              <span>STATUS:</span>
+              <strong>{po.status}</strong>
+            </span>
+          ) : (
+            <label className={`pdh-status-select-wrap status-badge status-${workflowStatusClass}`}>
+              <span>STATUS:</span>
+              <select
+                className="pdh-status-select"
+                value={workflowStatusValue}
+                disabled={isUpdatingStatus}
+                onChange={handleStatusChange}
+              >
+                {WORKFLOW_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {isConfirmed ? (
             <span className="pdh-confirmation pdh-confirmation--received">Approved for Workflow</span>
           ) : (

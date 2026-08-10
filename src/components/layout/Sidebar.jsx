@@ -4,6 +4,7 @@ import Icon from '../ui/Icon.jsx';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { isPurchaseOrderReadOnlyUser } from '../../auth/permissions.js';
 
 function getInitials(name) {
   if (!name) return 'U';
@@ -18,6 +19,7 @@ export default function Sidebar({ brand, navItems = [], children }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const isReadOnly = isPurchaseOrderReadOnlyUser(user);
 
   const handleLogout = async () => {
     await logout();
@@ -58,18 +60,31 @@ export default function Sidebar({ brand, navItems = [], children }) {
 
       {user ? (
         <Card className="user-panel" surface="subtle" density="compact">
-          <NavLink
-            to="/profile"
-            className={({ isActive }) => `user-panel-link${isActive ? ' active' : ''}`}
-            aria-label={t('a11y.viewProfile')}
-            title={isCollapsed ? user.fullName || t('common.user') : undefined}
-          >
-            <span className="user-avatar" aria-hidden="true">{getInitials(user.fullName)}</span>
-            <span className="user-meta">
-              <span className="user-name">{user.fullName || t('common.user')}</span>
-              <span className="user-email">{user.email}</span>
-            </span>
-          </NavLink>
+          {isReadOnly ? (
+            <div
+              className="user-panel-link"
+              title={isCollapsed ? user.fullName || t('common.user') : undefined}
+            >
+              <span className="user-avatar" aria-hidden="true">{getInitials(user.fullName)}</span>
+              <span className="user-meta">
+                <span className="user-name">{user.fullName || t('common.user')}</span>
+                <span className="user-email">{user.email}</span>
+              </span>
+            </div>
+          ) : (
+            <NavLink
+              to="/profile"
+              className={({ isActive }) => `user-panel-link${isActive ? ' active' : ''}`}
+              aria-label={t('a11y.viewProfile')}
+              title={isCollapsed ? user.fullName || t('common.user') : undefined}
+            >
+              <span className="user-avatar" aria-hidden="true">{getInitials(user.fullName)}</span>
+              <span className="user-meta">
+                <span className="user-name">{user.fullName || t('common.user')}</span>
+                <span className="user-email">{user.email}</span>
+              </span>
+            </NavLink>
+          )}
           <button
             type="button"
             className="nav-link user-logout"

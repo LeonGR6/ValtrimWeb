@@ -48,6 +48,19 @@
   transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
+.pdh-status-readonly {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  display: inline-flex;
+  gap: 7px;
+  padding: 7px 12px;
+}
+
+.pdh-status-readonly strong {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .pdh-status-select-wrap:hover,
 .pdh-status-select-wrap:focus-within {
   border-color: color-mix(in srgb, currentColor 28%, transparent);
@@ -90,6 +103,10 @@
 .pdh-status-select:disabled {
   cursor: wait;
   opacity: 0.7;
+}
+
+.po-notes-panel--readonly .pon-textarea {
+  cursor: default;
 }
 
 .pdh-status-select option {

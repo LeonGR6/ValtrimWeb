@@ -278,6 +278,7 @@ export default function PODetailTable({
   onOpenIssueEmailComposer,
   onToggleAllIssueLines,
   onToggleIssueLine,
+  readOnly = false,
   reportableIssueLineIds = [],
   selectedIssueLineIds = [],
   totalResults = 0,
@@ -288,10 +289,11 @@ export default function PODetailTable({
   const selectedIssueLineIdSet = new Set(selectedIssueLineIds);
   const selectedRateFixCount = selectedIssueLineIds.filter((lineId) => bulkApplicableLineIdSet.has(lineId)).length;
   const selectedIssueCount = selectedIssueLineIds.filter((lineId) => reportableIssueLineIdSet.has(lineId)).length;
-  const hasIssueSelection = reportableIssueLineIds.length > 0 && Boolean(onToggleIssueLine);
-  const hasBulkAction = bulkApplicableLineIds.length > 0 && Boolean(onApplyBulkRateFixes);
+  const hasIssueSelection = !readOnly && reportableIssueLineIds.length > 0 && Boolean(onToggleIssueLine);
+  const hasBulkAction = !readOnly && bulkApplicableLineIds.length > 0 && Boolean(onApplyBulkRateFixes);
+  const hasActionColumn = !readOnly;
   const isAllIssuesSelected = hasIssueSelection && selectedIssueCount === reportableIssueLineIds.length;
-  const columnCount = 16 + (hasIssueSelection ? 1 : 0);
+  const columnCount = 15 + (hasActionColumn ? 1 : 0) + (hasIssueSelection ? 1 : 0);
   const bulkProgressLabel = getBulkProgressLabel(bulkUpdateState);
   const selectionDisabled = issueSelectionDisabled || bulkSelectionDisabled;
 
@@ -379,7 +381,7 @@ export default function PODetailTable({
               <th>Variance</th>
               <th>Req. Date</th>
               <th>Vendor Ship Date</th>
-              <th>Action</th>
+              {hasActionColumn && <th>Action</th>}
             </tr>
           </thead>
           <tbody>
@@ -448,13 +450,15 @@ export default function PODetailTable({
                     </td>
                     <td>{line.reqDate ?? '-'}</td>
                     <td>{line.vendorShipDate ?? '-'}</td>
-                    <td>
-                      <ActionButton
-                        disabled={bulkSelectionDisabled}
-                        line={line}
-                        onEditQuickBooksLine={onEditQuickBooksLine}
-                      />
-                    </td>
+                    {hasActionColumn && (
+                      <td>
+                        <ActionButton
+                          disabled={bulkSelectionDisabled}
+                          line={line}
+                          onEditQuickBooksLine={onEditQuickBooksLine}
+                        />
+                      </td>
+                    )}
                   </tr>
                 );
               })

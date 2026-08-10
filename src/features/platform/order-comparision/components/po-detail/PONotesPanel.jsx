@@ -9,6 +9,7 @@ export default function PONotesPanel({
   onReset,
   onSave,
   persistedValue = '',
+  readOnly = false,
   saveState = {},
   updatedAt = '',
   value = '',
@@ -17,6 +18,7 @@ export default function PONotesPanel({
   const hasUnsavedChanges = value !== persistedValue;
   const charactersRemaining = NOTE_MAX_LENGTH - value.length;
   const status = (() => {
+    if (readOnly) return { className: 'pon-state--empty', label: 'Read only' };
     if (isSaving) return { className: 'pon-state--saving', label: 'Saving' };
     if (saveState.error) return { className: 'pon-state--error', label: 'Error' };
     if (hasUnsavedChanges) return { className: 'pon-state--dirty', label: 'Unsaved' };
@@ -27,7 +29,7 @@ export default function PONotesPanel({
   })();
 
   return (
-    <section className={`po-notes-panel${hasUnsavedChanges ? ' po-notes-panel--dirty' : ''}`}>
+    <section className={`po-notes-panel${hasUnsavedChanges ? ' po-notes-panel--dirty' : ''}${readOnly ? ' po-notes-panel--readonly' : ''}`}>
       <div className="pon-header">
         <div>
           <span className="pon-eyebrow">Internal Notes</span>
@@ -43,10 +45,11 @@ export default function PONotesPanel({
         aria-label="Internal purchase order note"
         className="pon-textarea"
         disabled={isSaving}
+        readOnly={readOnly}
         maxLength={NOTE_MAX_LENGTH}
         placeholder="Add delivery, or review context for this PO."
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => onChange?.(event.target.value)}
       />
 
       <div className="pon-footer">
@@ -64,32 +67,34 @@ export default function PONotesPanel({
           </span>
         </div>
 
-        <div className="pon-actions">
-          <button
-            className="pon-btn pon-btn--secondary"
-            disabled={isSaving || value.length === 0}
-            type="button"
-            onClick={onClear}
-          >
-            Clear
-          </button>
-          <button
-            className="pon-btn pon-btn--secondary"
-            disabled={isSaving || !hasUnsavedChanges}
-            type="button"
-            onClick={onReset}
-          >
-            Reset
-          </button>
-          <button
-            className="pon-btn pon-btn--primary"
-            disabled={isSaving || !hasUnsavedChanges}
-            type="button"
-            onClick={onSave}
-          >
-            {isSaving ? 'Saving...' : 'Save note'}
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="pon-actions">
+            <button
+              className="pon-btn pon-btn--secondary"
+              disabled={isSaving || value.length === 0}
+              type="button"
+              onClick={onClear}
+            >
+              Clear
+            </button>
+            <button
+              className="pon-btn pon-btn--secondary"
+              disabled={isSaving || !hasUnsavedChanges}
+              type="button"
+              onClick={onReset}
+            >
+              Reset
+            </button>
+            <button
+              className="pon-btn pon-btn--primary"
+              disabled={isSaving || !hasUnsavedChanges}
+              type="button"
+              onClick={onSave}
+            >
+              {isSaving ? 'Saving...' : 'Save note'}
+            </button>
+          </div>
+        )}
       </div>
 
       {saveState.error && (

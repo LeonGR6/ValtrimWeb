@@ -1,4 +1,5 @@
 import { assertSupabaseConfig, SUPABASE_ANON_KEY, SUPABASE_URL } from './supabaseClient.js';
+import { isPurchaseOrderReadOnlyUser } from '../auth/permissions.js';
 import {
   buildPurchaseOrderAlert,
   getPurchaseOrderAiSuggestionCount,
@@ -151,7 +152,7 @@ const getJsonObject = (value) => {
   }
 };
 
-const getSupabaseSessionToken = async () => {
+const getSupabaseSession = async () => {
   const client = assertSupabaseConfig();
   const { data, error } = await client.auth.getSession();
 
@@ -159,18 +160,35 @@ const getSupabaseSessionToken = async () => {
     throw error;
   }
 
-  return data.session?.access_token || null;
+  return data.session || null;
 };
 
-export const getWebhookAuthHeaders = async ({ hasJsonBody = false } = {}) => {
-  const sessionToken = await getSupabaseSessionToken();
+const getSupabaseSessionToken = async () => {
+  const session = await getSupabaseSession();
+  return session?.access_token || null;
+};
 
-  if (!sessionToken) {
+export const assertCanModifyPurchaseOrders = async () => {
+  const session = await getSupabaseSession();
+
+  if (!session?.access_token) {
     throw new Error('Your session has expired. Sign in again before continuing.');
   }
 
+  if (isPurchaseOrderReadOnlyUser(session.user)) {
+    const permissionError = new Error('Your account has read-only access to purchase orders.');
+    permissionError.name = 'PurchaseOrderPermissionError';
+    throw permissionError;
+  }
+
+  return session;
+};
+
+export const getWebhookAuthHeaders = async ({ hasJsonBody = false } = {}) => {
+  const session = await assertCanModifyPurchaseOrders();
+
   return {
-    Authorization: `Bearer ${sessionToken}`,
+    Authorization: `Bearer ${session.access_token}`,
     ...(hasJsonBody ? { 'Content-Type': 'application/json' } : {}),
   };
 };
@@ -258,6 +276,11 @@ export const normalizePurchaseOrderRow = (row) => {
 const requestSupabase = async (path, options = {}) => {
   if (!hasSupabaseConfig) {
     throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.');
+  }
+
+  const method = String(options.method || 'GET').toUpperCase();
+  if (!['GET', 'HEAD'].includes(method)) {
+    await assertCanModifyPurchaseOrders();
   }
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -513,6 +536,7 @@ const deleteStorageObjects = async (bucket, paths) => {
 };
 
 export const deletePurchaseOrder = async (poNumber) => {
+  await assertCanModifyPurchaseOrders();
   const filter = encodeURIComponent(String(poNumber));
   const fileRows = await requestSupabase(`purchase_order_files?select=*&po_number=eq.${filter}`);
   const filesByBucket = (fileRows || []).reduce((groups, file) => {

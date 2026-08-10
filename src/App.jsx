@@ -21,12 +21,25 @@ import OrderComparisonPage from './features/platform/order-comparision/pages/Ord
 import PODetailPage from './features/platform/order-comparision/pages/PODetailPage.jsx';
 
 import { useAuth } from './contexts/AuthContext.jsx';
+import { getDefaultAuthenticatedPath, isPurchaseOrderReadOnlyUser } from './auth/permissions.js';
 
 // App root: defines the application shell, routes, and cross-module UI wiring.
 const THEME_STORAGE_KEY = 'valtrim-ui-theme';
 const DEFAULT_THEME = 'dark';
 
-function getNavItems(t, isAdmin) {
+function getNavItems(t, isAdmin, isReadOnly) {
+  if (isReadOnly) {
+    return [
+      {
+        id: 'order-comparison',
+        to: '/order-comparison',
+        label: t('navigation.orderComparison'),
+        shortLabel: t('navigation.compare'),
+        icon: 'results',
+      },
+    ];
+  }
+
   const items = [
     { id: 'dashboard', to: '/dashboard', label: t('navigation.dashboard'), shortLabel: t('navigation.home'), icon: 'home' },
     {
@@ -123,7 +136,9 @@ export default function App() {
   const [theme, setTheme] = useState(getInitialTheme);
   const { isAuthenticated, isLoading, user } = useAuth();
   const isAdmin = Array.isArray(user?.roles) && user.roles.includes('admin');
-  const navItems = useMemo(() => getNavItems(t, isAdmin), [isAdmin, t]);
+  const isReadOnly = isPurchaseOrderReadOnlyUser(user);
+  const defaultAuthenticatedPath = getDefaultAuthenticatedPath(user);
+  const navItems = useMemo(() => getNavItems(t, isAdmin, isReadOnly), [isAdmin, isReadOnly, t]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -155,7 +170,7 @@ export default function App() {
     }
 
     if (isAuthenticated && !isPasswordResetPage) {
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to={defaultAuthenticatedPath} replace />;
     }
 
     return (
@@ -217,12 +232,12 @@ export default function App() {
 
         <main className="shell-content">
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Navigate to={defaultAuthenticatedPath} replace />} />
             <Route
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <PlatformHome />
+                  {isReadOnly ? <Navigate to="/order-comparison" replace /> : <PlatformHome />}
                 </ProtectedRoute>
               }
             />
@@ -230,11 +245,15 @@ export default function App() {
               path="/takeoff"
               element={
                 <ProtectedRoute>
-                  <ModulePlaceholder
-                    eyebrow={t('routes.takeoff.eyebrow')}
-                    title={t('routes.takeoff.title')}
-                    description={t('routes.takeoff.description')}
-                  />
+                  {isReadOnly ? (
+                    <Navigate to="/order-comparison" replace />
+                  ) : (
+                    <ModulePlaceholder
+                      eyebrow={t('routes.takeoff.eyebrow')}
+                      title={t('routes.takeoff.title')}
+                      description={t('routes.takeoff.description')}
+                    />
+                  )}
                 </ProtectedRoute>
               }
             />
@@ -242,11 +261,15 @@ export default function App() {
               path="/material-extraction"
               element={
                 <ProtectedRoute>
-                  <ModulePlaceholder
-                    eyebrow={t('routes.materials.eyebrow')}
-                    title={t('routes.materials.title')}
-                    description={t('routes.materials.description')}
-                  />
+                  {isReadOnly ? (
+                    <Navigate to="/order-comparison" replace />
+                  ) : (
+                    <ModulePlaceholder
+                      eyebrow={t('routes.materials.eyebrow')}
+                      title={t('routes.materials.title')}
+                      description={t('routes.materials.description')}
+                    />
+                  )}
                 </ProtectedRoute>
               }
             />
@@ -270,11 +293,15 @@ export default function App() {
               path="/profile"
               element={
                 <ProtectedRoute>
-                  <ModulePlaceholder
-                    eyebrow={t('routes.profile.eyebrow')}
-                    title={t('routes.profile.title')}
-                    description={t('routes.profile.description')}
-                  />
+                  {isReadOnly ? (
+                    <Navigate to="/order-comparison" replace />
+                  ) : (
+                    <ModulePlaceholder
+                      eyebrow={t('routes.profile.eyebrow')}
+                      title={t('routes.profile.title')}
+                      description={t('routes.profile.description')}
+                    />
+                  )}
                 </ProtectedRoute>
               }
             />
@@ -282,11 +309,15 @@ export default function App() {
               path="/admin/users"
               element={
                 <ProtectedRoute requiredRoles={['admin']}>
-                  <ModulePlaceholder
-                    eyebrow={t('routes.userAdmin.eyebrow')}
-                    title={t('routes.userAdmin.title')}
-                    description={t('routes.userAdmin.description')}
-                  />
+                  {isReadOnly ? (
+                    <Navigate to="/order-comparison" replace />
+                  ) : (
+                    <ModulePlaceholder
+                      eyebrow={t('routes.userAdmin.eyebrow')}
+                      title={t('routes.userAdmin.title')}
+                      description={t('routes.userAdmin.description')}
+                    />
+                  )}
                 </ProtectedRoute>
               }
             />

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { getDefaultAuthenticatedPath } from '../../auth/permissions.js';
 import BrandLogo from '../ui/BrandLogo';
 import LoadingScreen from '../ui/LoadingScreen.jsx';
 import PasswordField from '../ui/PasswordField';
@@ -33,8 +34,11 @@ export default function Login() {
         e.preventDefault();
         setFormError('');
         try {
-            await login({ email: formData.email, password: formData.password });
-            navigate(fromPath, { replace: true });
+            const result = await login({ email: formData.email, password: formData.password });
+            const destination = fromPath === '/dashboard'
+                ? getDefaultAuthenticatedPath(result.user)
+                : fromPath;
+            navigate(destination, { replace: true });
         } catch (err) {
             setFormError(err.message);
         }

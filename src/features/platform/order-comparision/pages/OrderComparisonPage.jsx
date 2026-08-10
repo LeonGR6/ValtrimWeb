@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import '../../../../styles/orderComparison.css';
+import { canModifyPurchaseOrders } from '../../../../auth/permissions.js';
+import { useAuth } from '../../../../contexts/AuthContext.jsx';
 import { deletePurchaseOrder, fetchPurchaseOrders } from '../../../../services/purchaseOrdersApi';
 
 import StatusTabs from '../components/StatusTabs';
@@ -130,7 +132,9 @@ const getBatchResults = (uploadPayload) => {
 
 export default function OrderComparisonPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const canManagePurchaseOrders = canModifyPurchaseOrders(user);
   const [viewPreferences, setViewPreferences] = useState(getInitialViewPreferences);
   const { activeTab, search, sortConfig } = viewPreferences;
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -315,13 +319,22 @@ export default function OrderComparisonPage() {
         </div>
       </div>
 
+      {!canManagePurchaseOrders && (
+        <div className="po-read-only-notice" role="status">
+          <strong>{t('orderComparison.readOnly.badge')}</strong>
+          <span>{t('orderComparison.readOnly.description')}</span>
+        </div>
+      )}
+
       <div className="section-header-actions">
-        <button
-          className="btn-primary"
-          onClick={() => setIsUploadModalOpen(true)}
-        >
-          <span className="btn-icon">+</span> {t('orderComparison.pdfButton')}
-        </button>
+        {canManagePurchaseOrders && (
+          <button
+            className="btn-primary"
+            onClick={() => setIsUploadModalOpen(true)}
+          >
+            <span className="btn-icon">+</span> {t('orderComparison.pdfButton')}
+          </button>
+        )}
         <button
           className="btn-secondary order-refresh-btn"
           disabled={isLoading}
@@ -357,12 +370,12 @@ export default function OrderComparisonPage() {
           data={filteredOrders}
           sortConfig={sortConfig}
           onSort={handleSort}
-          onDelete={handleDeletePurchaseOrder}
+          onDelete={canManagePurchaseOrders ? handleDeletePurchaseOrder : undefined}
           deletingPoNumber={deletingPoNumber}
         />
       )}
 
-      {isUploadModalOpen && (
+      {canManagePurchaseOrders && isUploadModalOpen && (
         <UploadVendorModal
           onClose={() => setIsUploadModalOpen(false)}
           onUploadSuccess={handleUploadSuccess}

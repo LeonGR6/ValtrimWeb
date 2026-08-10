@@ -76,6 +76,30 @@
   color: var(--text-muted);
 }
 
+.po-read-only-notice {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--table-link) 10%, var(--card-bg));
+  border: 1px solid color-mix(in srgb, var(--table-link) 32%, var(--card-border));
+  border-radius: 12px;
+  color: var(--text-main);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: -8px 0 20px;
+  padding: 12px 14px;
+}
+
+.po-read-only-notice strong {
+  color: var(--table-link);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.po-read-only-notice span {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
 /* --- Tabs --- */
 .tabs-container {
   display: flex;
